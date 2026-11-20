@@ -193,10 +193,10 @@ window.isPerformanceTier = isPerformanceTier;
 window.isMobileTier = isMobileTier;
 
 function getTierPixelRatio() {
-    // Performance Tier (integrated GPU or mobile): cap at 1.0 for locked 60 FPS
+    // Performance Tier (integrated GPU or mobile): cap at 1.25 for locked 60 FPS
     // Discrete High-End GPU (RTX, Radeon RX): cap at 1.5
     return isPerformanceTier 
-        ? Math.min(window.devicePixelRatio || 1, 1.0) 
+        ? Math.min(window.devicePixelRatio || 1, 1.25) 
         : Math.min(window.devicePixelRatio || 1, 1.5);
 }
 
@@ -247,6 +247,8 @@ window.renderer = renderer;
 window.checkIsMobileTier = checkIsMobileTier;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.autoUpdate = false; // Static architecture: bake shadow map once instead of re-rendering every frame
+renderer.shadowMap.needsUpdate = true;
 renderer.shadowMap.type = isPerformanceTier ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.10;
@@ -322,12 +324,12 @@ renderPass.clear = true;
 renderPass.clearDepth = true;
 composer.addPass(renderPass);
 
-// Screen Space Ambient Occlusion (SSAO) for deep grounded contact shadows under furniture & corners
+// Screen Space Ambient Occlusion (SSAO) at half-resolution (width * 0.5, height * 0.5) for crisp contact shadows without fill-rate bottlenecks
 const ssaoPass = new SSAOPass(
     scene,
     camera,
-    window.innerWidth,
-    window.innerHeight
+    Math.floor(window.innerWidth * 0.5),
+    Math.floor(window.innerHeight * 0.5)
 );
 ssaoPass.kernelRadius = 0.38;
 ssaoPass.minDistance = 0.002;
@@ -1592,69 +1594,78 @@ const pbrMustard = new THREE.MeshPhysicalMaterial({
 
 const pbrGlass = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    transmission: 0.96,
-    opacity: 1.0,
     transparent: true,
-    roughness: 0.03,
+    opacity: 0.24,
+    roughness: 0.08,
+    metalness: 0.10,
     ior: 1.52,
-    thickness: 0.02,
+    reflectivity: 0.50,
+    clearcoat: 0.80,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
 // Dedicated Anti-Reflective Balcony Glass (zero interior downlight reflections in sky)
 const pbrBalconyGlass = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    transmission: 0.98,
-    opacity: 1.0,
     transparent: true,
-    roughness: 0.01,
+    opacity: 0.20,
+    roughness: 0.08,
+    metalness: 0.10,
     ior: 1.01,
-    reflectivity: 0.0,
-    clearcoat: 0.0,
-    thickness: 0.01,
+    reflectivity: 0.10,
+    clearcoat: 0.20,
+    clearcoatRoughness: 0.10,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
 const pbrShowerGlass = new THREE.MeshPhysicalMaterial({
     color: 0xD8ECF0,
-    transmission: 0.85,
-    opacity: 0.28,
     transparent: true,
+    opacity: 0.24,
     roughness: 0.08,
-    metalness: 0.05,
+    metalness: 0.10,
     ior: 1.52,
-    thickness: 0.015,
     reflectivity: 0.35,
     clearcoat: 1.0,
     clearcoatRoughness: 0.04,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
 const pbrArchitecturalGlass = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    transmission: 0.92,
-    opacity: 1.0,
     transparent: true,
-    roughness: 0.10,
-    metalness: 0.05,
+    opacity: 0.24,
+    roughness: 0.08,
+    metalness: 0.10,
     ior: 1.52,
-    thickness: 0.03,
-    reflectivity: 0.50, // Softened from 0.90 to eliminate harsh window glare
+    reflectivity: 0.50,
     clearcoat: 0.60,
     clearcoatRoughness: 0.08,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
 // Reflective Architectural Glass for Master Bedroom Window
 const pbrBedroomGlass = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    transmission: 0.98,
-    opacity: 0.85,
     transparent: true,
-    roughness: 0.20,
-    metalness: 0.0,
-    reflectivity: 0.02,
-    clearcoat: 0.0,
+    opacity: 0.24,
+    roughness: 0.08,
+    metalness: 0.10,
+    ior: 1.52,
+    reflectivity: 0.20,
+    clearcoat: 0.40,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
@@ -1877,10 +1888,11 @@ const pbrCurtainLinen = new THREE.MeshPhysicalMaterial({
 
 const pbrSheerCurtain = new THREE.MeshPhysicalMaterial({
     color: 0xFFFAF5,
-    transmission: 0.75,
     transparent: true,
-    opacity: 0.70,
-    roughness: 0.65,
+    opacity: 0.60,
+    roughness: 0.75,
+    metalness: 0.0,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
@@ -1907,13 +1919,15 @@ const pbrDarkTitaniumSteel = new THREE.MeshPhysicalMaterial({
 // Subtle Water Reflection Inside Undermount Sink Basin
 const pbrSinkWater = new THREE.MeshPhysicalMaterial({
     color: 0x88B2C4,
-    transmission: 0.88,
-    opacity: 0.35,
     transparent: true,
+    opacity: 0.35,
     roughness: 0.02,
+    metalness: 0.10,
     ior: 1.333,
     clearcoat: 1.0,
     clearcoatRoughness: 0.02,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
@@ -1963,11 +1977,12 @@ const pbrAmberGlass = new THREE.MeshPhysicalMaterial({
     color: 0xC88642,
     roughness: 0.06,
     metalness: 0.05,
-    transmission: 0.70,
-    opacity: 0.95,
     transparent: true,
+    opacity: 0.55,
     ior: 1.54,
     clearcoat: 1.0,
+    envMapIntensity: 1.4,
+    depthWrite: false,
     clippingPlanes: [clipHeightPlane]
 });
 
@@ -4861,16 +4876,16 @@ function buildMasterBedroom() {
     }
 
     // -------------------------------------------------------------------------
-    // PLEATED TRANSLUCENT WHITE SHEER VOILE CURTAINS (transmission: 0.55, roughness: 0.8)
+    // PLEATED TRANSLUCENT WHITE SHEER VOILE CURTAINS
     // -------------------------------------------------------------------------
     const pbrVoileMat = new THREE.MeshPhysicalMaterial({
         color: 0xFAFAFA,
-        transmission: 0.55, // User requested transmission: 0.55
         transparent: true,
         opacity: 0.42,      // Perfectly balanced translucency to reveal sunlit skyline & towers
-        roughness: 0.80,    // User requested roughness: 0.8
+        roughness: 0.80,
         metalness: 0.0,
         ior: 1.15,
+        depthWrite: false,
         side: THREE.DoubleSide,
         clippingPlanes: [clipHeightPlane]
     });
@@ -6075,6 +6090,7 @@ window.isCapturing = false;
 const currentCamPos = new THREE.Vector3();
 const currentCamTarget = new THREE.Vector3();
 const animClock = new THREE.Clock();
+let wallsLockedOpaque = false;
 
 // ----------------------------------------------------------------------------
 // ENFORCE 100% OPAQUE INTERIOR MATERIALS (Zero X-Ray / Bleed-Through)
@@ -6156,8 +6172,13 @@ function render() {
     wallGroup.visible = (camState.clipHeight <= 1.30);
     blueprintMesh.visible = (camState.progress < 0.15);
     materialGroup.visible = (camState.clipHeight > 1.25);
-    if (camState.clipHeight > 1.25 || camState.progress >= 0.15) {
+
+    // One-time state guard: Only enforce opaque materials once upon crossing into 3D interior (zero per-frame mesh loops)
+    if (!wallsLockedOpaque && (camState.clipHeight > 1.25 || camState.progress >= 0.18)) {
         enforceOpaqueMaterials();
+        wallsLockedOpaque = true;
+    } else if (wallsLockedOpaque && camState.progress < 0.14 && camState.clipHeight <= 1.25) {
+        wallsLockedOpaque = false;
     }
 
     if (camState.fov) {
@@ -6211,6 +6232,9 @@ function configureGPUTier() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
     if (composer.setPixelRatio) composer.setPixelRatio(pixelRatio);
+    if (ssaoPass && ssaoPass.setSize) {
+        ssaoPass.setSize(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
+    }
 
     const targetShadowSize = isPerformanceTier ? 1024 : 2048;
     if (sunLight && sunLight.shadow) {
@@ -6222,6 +6246,7 @@ function configureGPUTier() {
             }
         }
         renderer.shadowMap.type = isPerformanceTier ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+        renderer.shadowMap.autoUpdate = false; // Static architecture: never re-render shadow map every frame
         renderer.shadowMap.needsUpdate = true;
     }
 }
@@ -6650,8 +6675,12 @@ window.applyProgressToScene = function(p) {
     wallGroup.visible = (camState.clipHeight <= 1.30);
     blueprintMesh.visible = (p < 0.15);
     materialGroup.visible = (camState.clipHeight > 1.25);
-    if (camState.clipHeight > 1.25 || camState.progress >= 0.15) {
+    // One-time state guard: Only enforce opaque materials once upon crossing into 3D interior (zero per-frame mesh loops)
+    if (!wallsLockedOpaque && (camState.clipHeight > 1.25 || p >= 0.18)) {
         enforceOpaqueMaterials();
+        wallsLockedOpaque = true;
+    } else if (wallsLockedOpaque && p < 0.14 && camState.clipHeight <= 1.25) {
+        wallsLockedOpaque = false;
     }
 
     if (camState.fov) {
@@ -6715,9 +6744,73 @@ window.exportSceneToGLTF = function(options = { binary: true }) {
     );
 };
 
-// Initial warm-up render & preloader dismissal: Shader pre-warming ensures zero mid-scroll stutter
-console.log('[Renderer] Pre-warming shaders across all room meshes, materials and lights with renderer.compile()...');
+// ----------------------------------------------------------------------------
+// COMPREHENSIVE SHADER PRE-WARMING & TEXTURE VRAM UPLOAD BEHIND PRELOADER
+// ----------------------------------------------------------------------------
+console.log('[Renderer] Comprehensive Pre-warming: Pre-compiling all PBR shaders and uploading textures upfront...');
+
+// 1. Temporarily make all interior rooms/meshes visible and unclipped for initialization
+const initMatGroupVis = materialGroup.visible;
+const initWallGroupVis = wallGroup.visible;
+const initBpVis = blueprintMesh.visible;
+const initClipEnabled = renderer.localClippingEnabled;
+const initClipConstant = clipHeightPlane.constant;
+
+materialGroup.visible = true;
+wallGroup.visible = true;
+blueprintMesh.visible = true;
+renderer.localClippingEnabled = false;
+clipHeightPlane.constant = 50.0;
+enforceOpaqueMaterials();
+
+materialGroup.traverse(child => {
+    if (child.isMesh) child.visible = true;
+});
+
+// 2. Upload all generated & procedural textures to GPU VRAM via renderer.initTexture(tex)
+const uploadedTextures = new Set();
+scene.traverse(obj => {
+    if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+            if (!m) continue;
+            const texKeys = [
+                'map', 'roughnessMap', 'metalnessMap', 'normalMap', 'bumpMap',
+                'aoMap', 'alphaMap', 'emissiveMap', 'clearcoatMap', 'clearcoatRoughnessMap'
+            ];
+            for (const key of texKeys) {
+                const tex = m[key];
+                if (tex && tex.isTexture && !uploadedTextures.has(tex)) {
+                    uploadedTextures.add(tex);
+                    try {
+                        renderer.initTexture(tex);
+                    } catch (_) {}
+                }
+            }
+        }
+    }
+});
+console.log(`[Renderer] Successfully pre-uploaded ${uploadedTextures.size} textures to GPU memory.`);
+
+// 3. Compile all scene materials upfront with renderer.compile()
 renderer.compile(scene, camera);
+
+// 4. Bake static sun shadow map once (shadowMap.autoUpdate = false)
+if (sunLight && sunLight.shadow) {
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
+    renderer.render(scene, camera);
+}
+
+// 5. Restore clean initial state for 2D Blueprint Stop 0
+materialGroup.visible = initMatGroupVis;
+wallGroup.visible = initWallGroupVis;
+blueprintMesh.visible = initBpVis;
+renderer.localClippingEnabled = initClipEnabled;
+clipHeightPlane.constant = initClipConstant;
+wallsLockedOpaque = false;
+
+window.applyProgressToScene(0);
 render();
 updateUI();
 dismissPreloader('scene_init_complete');
