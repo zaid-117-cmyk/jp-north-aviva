@@ -103,10 +103,11 @@ THREE.DefaultLoadingManager.onError = function(url) {
 // 1. LENIS SMOOTH SCROLL & GSAP SETUP (Synchronized Ticker, lagSmoothing(0))
 // ----------------------------------------------------------------------------
 const lenis = new Lenis({
-    duration: 1.6,
-    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    duration: 0.85, // Snappy, direct, immediate responsiveness (eliminates sluggish wheel delay)
+    easing: (t) => 1 - Math.pow(1 - t, 3), // Smooth cubic-out: starts fast, lands cleanly
     smoothWheel: true,
-    touchMultiplier: 1.2
+    wheelMultiplier: 1.0,
+    touchMultiplier: 1.0
 });
 window.lenis = lenis;
 
@@ -130,7 +131,37 @@ scene.background = new THREE.Color(0xF8F6F0); // Architectural drafting cream
 
 const camera = new THREE.PerspectiveCamera(6.0, window.innerWidth / window.innerHeight, 0.05, 120);
 
-// Dual-Tier Performance System (Desktop vs Mobile/Low-Memory Devices)
+// Hardware GPU Probing & Intelligent Tiering (Detects Integrated Intel/AMD/Mobile vs Discrete GPUs)
+function detectHardwareGPU() {
+    try {
+        const c = document.createElement('canvas');
+        const gl = c.getContext('webgl2') || c.getContext('webgl');
+        if (!gl) return { renderer: '', isIntegrated: false };
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const rStr = ext ? (gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '') : (gl.getParameter(gl.RENDERER) || '');
+        const lose = gl.getExtension('WEBGL_lose_context');
+        if (lose) lose.loseContext();
+        
+        const s = rStr.toLowerCase();
+        // Detect integrated or entry-level GPUs (Intel HD/UHD/Iris, AMD Vega/APU, Mali, Adreno, etc.)
+        const isIntel = s.includes('intel') && !s.includes('arc');
+        const isIntegratedRadeon = s.includes('radeon') && (s.includes('vega') || s.includes('graphics') || s.includes('(tm)'));
+        const isEntryGeforce = s.includes('geforce mx') || s.includes('gt 7') || s.includes('gt 6') || s.includes('gt 1030');
+        const isMobileGPU = s.includes('mali') || s.includes('adreno') || s.includes('powervr') || s.includes('apple gpu');
+        const isSoftware = s.includes('swiftshader') || s.includes('llvmpipe') || s.includes('softpipe') || s.includes('basic render');
+        
+        return {
+            renderer: rStr,
+            isIntegrated: isIntel || isIntegratedRadeon || isEntryGeforce || isMobileGPU || isSoftware
+        };
+    } catch (_) {
+        return { renderer: '', isIntegrated: false };
+    }
+}
+
+const hardwareGPU = detectHardwareGPU();
+console.log('[Performance] Detected GPU:', hardwareGPU.renderer || 'Default', '| Integrated/Low-Power:', hardwareGPU.isIntegrated);
+
 function checkIsMobileTier() {
     // 1. Viewport width check (< 768px is mobile phone / tablet portrait)
     const isSmallScreen = window.innerWidth < 768;
@@ -150,17 +181,53 @@ function checkIsMobileTier() {
     // 5. Mobile User Agent check (iOS Safari, Android Chrome, etc.)
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
 
-    return isSmallScreen || isTouchDevice || isLowMemory || isLowCore || isMobileUA;
+    // 6. Integrated GPU check (e.g. Intel HD Graphics 4600)
+    const isIntegrated = hardwareGPU.isIntegrated;
+
+    return isSmallScreen || isTouchDevice || isLowMemory || isLowCore || isMobileUA || isIntegrated;
 }
-let isMobileTier = checkIsMobileTier();
+
+let isPerformanceTier = checkIsMobileTier();
+let isMobileTier = isPerformanceTier;
+window.isPerformanceTier = isPerformanceTier;
 window.isMobileTier = isMobileTier;
 
 function getTierPixelRatio() {
-    // Desktop: cap at 2.0 (crisp 4K/Retina); Mobile/low-memory: cap at 1.5 (prevents fill-rate bottlenecks)
-    return isMobileTier 
-        ? Math.min(window.devicePixelRatio || 1, 1.5) 
-        : Math.min(window.devicePixelRatio || 1, 2.0);
+    // Performance Tier (integrated GPU or mobile): cap at 1.0 for locked 60 FPS
+    // Discrete High-End GPU (RTX, Radeon RX): cap at 1.5
+    return isPerformanceTier 
+        ? Math.min(window.devicePixelRatio || 1, 1.0) 
+        : Math.min(window.devicePixelRatio || 1, 1.5);
 }
+
+function setPerformanceMode(turboActive) {
+    isPerformanceTier = turboActive;
+    isMobileTier = turboActive;
+    window.isPerformanceTier = isPerformanceTier;
+    window.isMobileTier = isMobileTier;
+
+    const btn = document.getElementById('header-perf-toggle');
+    if (btn) {
+        if (isPerformanceTier) {
+            btn.innerHTML = '⚡ 60 FPS Turbo';
+            btn.classList.remove('studio-active');
+            btn.title = '60 FPS Turbo Mode Active (Fast direct rendering). Click for Studio Visuals.';
+        } else {
+            btn.innerHTML = '💎 Studio HD';
+            btn.classList.add('studio-active');
+            btn.title = 'Studio Visuals Active (SSAO & Bloom). Click for 60 FPS Turbo Mode.';
+        }
+    }
+
+    configureGPUTier();
+    console.log(`[Performance] Switched to ${isPerformanceTier ? '60 FPS Turbo Mode (Direct Pass)' : 'Studio Visuals (Composer SSAO + Bloom)'}`);
+}
+window.setPerformanceMode = setPerformanceMode;
+
+function togglePerformanceMode() {
+    setPerformanceMode(!isPerformanceTier);
+}
+window.togglePerformanceMode = togglePerformanceMode;
 
 // Dual-Tier Procedural Texture Resolution Scales (reduces GPU VRAM by ~70% on mobile)
 // 2048x2048 -> 1024x1024 (16MB -> 4MB), 1024x1024 -> 512x512 (4MB -> 1MB), 512x512 -> 256x256 (1MB -> 256KB)
@@ -180,7 +247,7 @@ window.renderer = renderer;
 window.checkIsMobileTier = checkIsMobileTier;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = isPerformanceTier ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.10;
 renderer.localClippingEnabled = true;
@@ -192,7 +259,7 @@ renderer.autoClearDepth = true;
 renderer.autoClearStencil = true;
 
 RectAreaLightUniformsLib.init();
-const maxAniso = renderer.capabilities.getMaxAnisotropy();
+const maxAniso = isPerformanceTier ? Math.min(renderer.capabilities.getMaxAnisotropy(), 4) : renderer.capabilities.getMaxAnisotropy();
 
 // ----------------------------------------------------------------------------
 // 3. HIGH-CONTRAST INTERIOR-WARM PMREM GENERATOR ENVIRONMENT MAP (RoomEnvironment + Warm Window Emitters)
@@ -6037,6 +6104,10 @@ function enforceOpaqueMaterials() {
     });
 }
 
+let lastFrameTime = performance.now();
+let recentDeltas = [];
+let autoOptimized = false;
+
 function render() {
     // Pause render loop when tab is hidden in background (0% CPU / 0% GPU battery saving)
     if (document.hidden || isTabHidden) {
@@ -6045,6 +6116,24 @@ function render() {
 
     requestAnimationFrame(render);
     if (window.isCapturing) return;
+
+    // Adaptive Frame-Rate Guardian: Auto-optimizes to Turbo if FPS drops below 40
+    const now = performance.now();
+    const frameDelta = now - lastFrameTime;
+    lastFrameTime = now;
+
+    if (!autoOptimized && !isPerformanceTier && frameDelta > 0 && frameDelta < 200) {
+        recentDeltas.push(frameDelta);
+        if (recentDeltas.length >= 25) {
+            const avgDelta = recentDeltas.reduce((a, b) => a + b, 0) / recentDeltas.length;
+            if (avgDelta > 24) { // > 24ms per frame means < 41 FPS
+                console.warn(`[Performance Guardian] Low framerate detected (${(1000 / avgDelta).toFixed(1)} FPS). Auto-switching to 60 FPS Turbo Mode.`);
+                setPerformanceMode(true);
+                autoOptimized = true;
+            }
+            recentDeltas = [];
+        }
+    }
 
     if (camState.progress >= 0.18) {
         clipHeightPlane.constant = 50.0;
@@ -6103,13 +6192,13 @@ function render() {
     if (window.downlightLensMat) window.downlightLensMat.visible = (camState.progress < 0.84);
     if (window.coveLightMat) window.coveLightMat.visible = (camState.progress < 0.84);
 
-    if (isMobileTier) {
-        // Mobile tier: Bypass heavy post-processing passes (SSAO/Bloom) for locked 60fps
+    if (isPerformanceTier) {
+        // High-Performance Turbo Tier (Integrated GPU or Mobile): Direct hardware pass for locked 60fps
         ssaoPass.enabled = false;
         bloomPass.enabled = false;
         renderer.render(scene, camera);
     } else {
-        // Desktop tier: Full post-processing with SSAO contact shadows & bloom
+        // Discrete High-End GPU Tier: Full post-processing with SSAO contact shadows & bloom
         ssaoPass.enabled = (camState.clipHeight > 1.30);
         bloomPass.enabled = true;
         composer.render();
@@ -6117,15 +6206,13 @@ function render() {
 }
 
 function configureGPUTier() {
-    isMobileTier = checkIsMobileTier();
-    window.isMobileTier = isMobileTier;
     const pixelRatio = getTierPixelRatio();
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
     if (composer.setPixelRatio) composer.setPixelRatio(pixelRatio);
 
-    const targetShadowSize = isMobileTier ? 1024 : 2048;
+    const targetShadowSize = isPerformanceTier ? 1024 : 2048;
     if (sunLight && sunLight.shadow) {
         if (sunLight.shadow.mapSize.x !== targetShadowSize) {
             sunLight.shadow.mapSize.set(targetShadowSize, targetShadowSize);
@@ -6134,6 +6221,8 @@ function configureGPUTier() {
                 sunLight.shadow.map = null;
             }
         }
+        renderer.shadowMap.type = isPerformanceTier ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+        renderer.shadowMap.needsUpdate = true;
     }
 }
 window.configureGPUTier = configureGPUTier;
@@ -6147,7 +6236,7 @@ function onThrottledResize() {
         configureGPUTier();
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        if (isMobileTier) {
+        if (isPerformanceTier) {
             renderer.render(scene, camera);
         } else {
             composer.render();
@@ -6597,7 +6686,7 @@ window.applyProgressToScene = function(p) {
     updateUI();
     checkPhotoStop(p);
 
-    if (isMobileTier) {
+    if (isPerformanceTier) {
         ssaoPass.enabled = false;
         bloomPass.enabled = false;
         renderer.render(scene, camera);
@@ -6632,6 +6721,20 @@ renderer.compile(scene, camera);
 render();
 updateUI();
 dismissPreloader('scene_init_complete');
+
+// Initialize Performance Toggle Button state
+const perfBtn = document.getElementById('header-perf-toggle');
+if (perfBtn) {
+    if (isPerformanceTier) {
+        perfBtn.innerHTML = '⚡ 60 FPS Turbo';
+        perfBtn.classList.remove('studio-active');
+        perfBtn.title = '60 FPS Turbo Mode Active. Click for Studio Visuals.';
+    } else {
+        perfBtn.innerHTML = '💎 Studio HD';
+        perfBtn.classList.add('studio-active');
+        perfBtn.title = 'Studio Visuals Active. Click for 60 FPS Turbo Mode.';
+    }
+}
 
 // Attach click listeners for Room Spec Hotspot buttons
 document.addEventListener('DOMContentLoaded', () => {

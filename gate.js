@@ -111,6 +111,20 @@ export function checkHardwareCapabilities() {
     }
 }
 
+export function detectIntegratedOrLowEndGPU(rendererString) {
+    if (!rendererString) return false;
+    const s = rendererString.toLowerCase();
+    
+    // Check for integrated, entry-level, or mobile GPUs
+    const isIntel = s.includes('intel') && !s.includes('arc'); // Intel HD, UHD, Iris, etc. (Arc is discrete)
+    const isIntegratedRadeon = s.includes('radeon') && (s.includes('vega') || s.includes('graphics') || s.includes('(tm)'));
+    const isEntryGeforce = s.includes('geforce mx') || s.includes('gt 7') || s.includes('gt 6') || s.includes('gt 1030');
+    const isMobileGPU = s.includes('mali') || s.includes('adreno') || s.includes('powervr') || s.includes('apple gpu');
+    const isSoftware = s.includes('swiftshader') || s.includes('llvmpipe') || s.includes('softpipe') || s.includes('basic render');
+    
+    return isIntel || isIntegratedRadeon || isEntryGeforce || isMobileGPU || isSoftware;
+}
+
 export function checkIsMobileTier() {
     // 1. Viewport width check (< 768px is mobile phone / tablet portrait)
     const isSmallScreen = window.innerWidth < 768;
@@ -130,7 +144,12 @@ export function checkIsMobileTier() {
     // 5. Mobile User Agent check (iOS Safari, Android Chrome, etc.)
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
 
-    return isSmallScreen || isTouchDevice || isLowMemory || isLowCore || isMobileUA;
+    // 6. Integrated / Low-Power GPU check (e.g. Intel HD Graphics 4600)
+    const isIntegrated = (typeof capabilityReport !== 'undefined' && capabilityReport.renderer) 
+        ? detectIntegratedOrLowEndGPU(capabilityReport.renderer) 
+        : false;
+
+    return isSmallScreen || isTouchDevice || isLowMemory || isLowCore || isMobileUA || isIntegrated;
 }
 
 // ----------------------------------------------------------------------------
@@ -304,6 +323,7 @@ function initGatekeeper() {
 
     // Expose functions globally for HTML event handlers and tests
     window.checkHardwareCapabilities = checkHardwareCapabilities;
+    window.detectIntegratedOrLowEndGPU = detectIntegratedOrLowEndGPU;
     window.checkIsMobileTier = checkIsMobileTier;
     window.switchExperienceMode = switchExperienceMode;
     window.toggleExperienceMode = toggleExperienceMode;

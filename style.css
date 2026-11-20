@@ -1358,6 +1358,28 @@ html, body {
     transform: translateY(-1px);
 }
 
+.perf-toggle-btn {
+    border-color: rgba(78, 201, 176, 0.45);
+    color: #4EC9B0;
+}
+
+.perf-toggle-btn:hover {
+    background: rgba(78, 201, 176, 0.20);
+    border-color: #4EC9B0;
+    color: #FFFFFF;
+}
+
+.perf-toggle-btn.studio-active {
+    border-color: rgba(212, 163, 89, 0.45);
+    color: #F1D49B;
+}
+
+.perf-toggle-btn.studio-active:hover {
+    background: rgba(212, 163, 89, 0.20);
+    border-color: #D4A359;
+    color: #FFFFFF;
+}
+
 /* ============================================================================
    GRACEFUL HARDWARE FALLBACK & VIDEO MODE VIEW
    ============================================================================ */

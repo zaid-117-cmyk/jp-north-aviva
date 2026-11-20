@@ -10,6 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <!-- High-Resolution Architectural Favicon (Eliminates 404 in DevTools Console) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231A1C1E'/%3E%3Cpath d='M30 80V25L70 45V80H55V60H45V80Z' fill='%23C49A58'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%23F8F6F0'/%3E%3C/svg%3E">
+
     <!-- Stylesheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -55,6 +58,9 @@
                         <button type="button" class="unit-pill" data-unit="imperial" onclick="window.setGlobalUnit('imperial')">SQ.FT</button>
                     </div>
                 </div>
+
+                <!-- Performance & Quality Mode Switcher (⚡ 60 FPS Turbo vs 💎 Studio Visuals) -->
+                <button type="button" id="header-perf-toggle" class="mode-toggle-btn perf-toggle-btn" onclick="window.togglePerformanceMode()" title="Toggle between 60 FPS Turbo Mode and Studio Visuals">⚡ 60 FPS Turbo</button>
 
                 <!-- Manual Experience Mode Switcher (3D Spatial vs Lite Video) -->
                 <button type="button" id="header-mode-toggle" class="mode-toggle-btn" onclick="window.toggleExperienceMode()" title="Toggle between 3D Spatial Walkthrough and High-Definition Video Mode">🎬 Video Mode</button>
