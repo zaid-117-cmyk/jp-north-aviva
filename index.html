@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JP North Aviva 1 BHK — Interactive Spatial Experience & Designer Notes</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Bulletproof Architectural Preloader & Loading Fallback -->
+    <div id="experience-preloader" class="experience-preloader" aria-live="polite" aria-busy="true">
+        <div class="preloader-content">
+            <div class="preloader-badge">JP NORTH AVIVA · MIRA ROAD EAST</div>
+            <h2 class="preloader-title">JP North Aviva</h2>
+            <p class="preloader-subtitle">1 BHK Residence · Wing A · Type R1 · MahaRERA: P51700023940</p>
+            <div class="preloader-bar-wrap">
+                <div id="preloader-progress-bar" class="preloader-bar-fill"></div>
+            </div>
+            <div id="preloader-status-text" class="preloader-status">Initializing 3D Spatial Walkthrough...</div>
+            <button type="button" class="preloader-mode-switch" onclick="window.switchExperienceMode('video')" title="Switch to High-Definition Walkthrough Video">Older phone or slow connection? Switch to Video Mode &rarr;</button>
+        </div>
+    </div>
+
+    <!-- Three.js Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Scroll Track (Drives Lenis + GSAP ScrollTrigger) -->
+    <div id="scroll-container"></div>
+
+    <!-- Architectural HUD Overlay -->
+    <div id="hud-overlay">
+        <!-- Top Navigation Header -->
+        <header class="hud-header">
+            <div class="brand-title" id="brand-title-card">
+                <span class="badge-checkpoint">JP North Aviva · Spatial Presentation</span>
+                <h1>JP North Aviva</h1>
+                <p id="brand-carpet-sub">1 BHK Residence · Wing A · Type R1 · 27.96 Sq.M. Carpet</p>
+            </div>
+
+            <!-- Navigation Controls: Global Unit Toggle & Scrub Buttons -->
+            <div class="nav-controls-group">
+                <!-- Compact Frosted-Glass SQ.M | SQ.FT Toggle Pill -->
+                <div class="unit-toggle-wrapper" id="header-unit-toggle">
+                    <span class="unit-toggle-title">DIMENSIONS</span>
+                    <div class="unit-segmented-control" role="group" aria-label="Dimension Unit Toggle">
+                        <button type="button" class="unit-pill active" data-unit="metric" onclick="window.setGlobalUnit('metric')">SQ.M</button>
+                        <button type="button" class="unit-pill" data-unit="imperial" onclick="window.setGlobalUnit('imperial')">SQ.FT</button>
+                    </div>
+                </div>
+
+                <!-- Manual Experience Mode Switcher (3D Spatial vs Lite Video) -->
+                <button type="button" id="header-mode-toggle" class="mode-toggle-btn" onclick="window.toggleExperienceMode()" title="Toggle between 3D Spatial Walkthrough and High-Definition Video Mode">🎬 Video Mode</button>
+
+                <!-- Architectural Scrub Controls -->
+                <div class="scrub-buttons-container">
+                    <button onclick="window.jumpToStop(0)" class="scrub-btn">0 Plan</button>
+                    <button onclick="window.jumpToStop(1)" class="scrub-btn">1 Living Air</button>
+                    <button onclick="window.jumpToStop(2)" class="scrub-btn">2 Living Hold</button>
+                    <button onclick="window.jumpToStop(3)" class="scrub-btn">3 Kitchen Air</button>
+                    <button onclick="window.jumpToStop(4)" class="scrub-btn">4 Kitchen Hold</button>
+                    <button onclick="window.jumpToStop(5)" class="scrub-btn">5 Bed Air</button>
+                    <button onclick="window.jumpToStop(6)" class="scrub-btn">6 Bed Hold</button>
+                    <button onclick="window.jumpToStop(7)" class="scrub-btn highlight-balcony">7 Balcony Hold</button>
+                    <button type="button" onclick="window.exportSceneToGLTF()" class="scrub-btn highlight-gold" title="Export 3D Geometry to GLB for Blender Lighting Baking">&#x2913; Export for Blender (.glb)</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Bottom Controls & Timeline Progress -->
+        <footer class="hud-footer">
+            <!-- Scroll Progress Indicator -->
+            <div class="progress-card" id="progress-card-pill">
+                <div class="progress-header">
+                    <span id="active-room-label">Spatial Timeline</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+                <div class="scroll-hint">
+                    <span>Scroll down</span>
+                    <kbd>↓</kbd> or <kbd>Wheel</kbd> to travel through rooms
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Interactive Room Card & Minimalist '+' Button (Fixed in Corner) -->
+    <div id="room-interaction-container" class="room-interaction-container">
+        <!-- Minimalist '+' Button (fades in via GSAP only at eye-level photo stops) -->
+        <button id="room-plus-btn" class="room-plus-btn" onclick="window.toggleRoomCard()" aria-label="Explore Room Specifications" title="Click to View Architectural Specifications">
+            <span class="plus-beacon"></span>
+            <span id="plus-icon" class="plus-icon">+</span>
+            <span class="plus-label">PITCH SPECS</span>
+        </button>
+
+        <!-- Frosted Glass Architectural Spec Card -->
+        <div id="room-card" class="room-card" role="dialog" aria-modal="true" aria-labelledby="rc-name">
+            <div class="rc-header">
+                <div class="rc-tag-group">
+                    <span id="rc-zone" class="rc-zone-tag">ZONE 01 · SOCIAL &amp; ENTERTAINMENT</span>
+                    <span class="rc-spec-badge">ARCHITECTURAL SPECIFICATION</span>
+                </div>
+                <button id="room-card-close" class="rc-close-btn" onclick="window.closeRoomCard()" aria-label="Close specification card">&times;</button>
+            </div>
+
+            <h2 id="rc-name" class="rc-title">Living &amp; Dining Sanctuary</h2>
+            <p id="rc-subtitle" class="rc-subtitle">JP North Aviva · Wing A · Type R1 · MahaRERA Approved</p>
+
+            <!-- Interactive Unit Toggle inside the card -->
+            <div class="rc-unit-toggle-wrapper">
+                <span class="rc-toggle-label">DISPLAY UNITS</span>
+                <div class="rc-segmented-control" role="group" aria-label="Specification Unit Toggle">
+                    <button type="button" id="rc-unit-m" class="rc-unit-btn active" data-unit="metric" onclick="window.setGlobalUnit('metric')">METRIC (m / m&sup2;)</button>
+                    <button type="button" id="rc-unit-f" class="rc-unit-btn" data-unit="imperial" onclick="window.setGlobalUnit('imperial')">IMPERIAL (ft / sq.ft)</button>
+                </div>
+            </div>
+
+            <div class="rc-metrics-grid">
+                <div class="rc-metric-box">
+                    <span class="rc-label">DIMENSIONS</span>
+                    <div id="rc-dim-val" class="rc-metric-val">2.75m &times; 3.95m</div>
+                    <div id="rc-dim-alt" class="rc-metric-sub">9'0" &times; 13'0"</div>
+                </div>
+                <div class="rc-metric-box">
+                    <span class="rc-label">RERA CARPET AREA</span>
+                    <div id="rc-area-val" class="rc-metric-val">10.86 m&sup2;</div>
+                    <div id="rc-area-alt" class="rc-metric-sub">117 sq.ft</div>
+                </div>
+                <div class="rc-metric-box rc-metric-full">
+                    <span class="rc-label">CEILING CLEAR HEIGHT</span>
+                    <div id="rc-height-val" class="rc-metric-val">2.85 m (9'4" Clear Slab-to-Slab)</div>
+                </div>
+            </div>
+
+            <div class="rc-section">
+                <span class="rc-section-title">FLOORING &amp; FINISH SPECIFICATIONS</span>
+                <p id="rc-finishes" class="rc-val-text">High-gloss Italian Calacatta vitrified tiles (800&times;1600mm), "Whispering Smoke" (#ECE8E1) matte acrylic emulsion with 100mm shadow-gap baseboard, and Scandinavian Oak joinery.</p>
+            </div>
+
+            <div class="rc-section">
+                <span class="rc-section-title">ELECTRICAL, HVAC &amp; AMENITIES</span>
+                <p id="rc-amenities" class="rc-val-text">Inverter Split AC (24&deg;C digital display), 65" Ultra-Thin 4K OLED Smart TV with Ambilight backlighting, recessed 3000K architectural warm LED downlights.</p>
+            </div>
+
+            <div class="rc-section">
+                <span class="rc-section-title">JP INFRA SALES PITCH HIGHLIGHTS</span>
+                <ul id="rc-pitch-points" class="rc-pitch-list">
+                    <li>Zero space wastage: maximizes usable carpet area under MahaRERA standards.</li>
+                    <li>Direct seamless circulation into private North-facing enclosed balcony.</li>
+                    <li>Large format porcelain floor tiles create expansive visual perception.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+        <!-- Closing Pitch & Site Visit CTA Card (Appears at 92%-100% Sunset Finale) -->
+    <div id="closing-cta-card" class="closing-cta-card" aria-hidden="true">
+        <div class="cta-glass-panel">
+            <div class="cta-top-row">
+                <span class="cta-badge">JP NORTH AVIVA · WING A TYPICAL FLOOR</span>
+                <span class="cta-rera-tag">MahaRERA: P51700023940</span>
+            </div>
+            <h2 class="cta-title">Ready to Experience It in Person?</h2>
+            <p class="cta-description">Walk through the actual 27.96 Sq.M. (301 Sq.Ft.) carpet 1 BHK with enclosed private balcony at North Garden City, Mira Road East.</p>
+            
+            <div class="cta-features-grid">
+                <div class="cta-feature-chip">
+                    <span class="chip-val">100% Usable</span>
+                    <span class="chip-lbl">Zero Space Wastage</span>
+                </div>
+                <div class="cta-feature-chip">
+                    <span class="chip-val">Direct Balcony</span>
+                    <span class="chip-lbl">Teak Deck & Utility</span>
+                </div>
+                <div class="cta-feature-chip">
+                    <span class="chip-val">Luxury PBR</span>
+                    <span class="chip-lbl">Turnkey Finishes</span>
+                </div>
+            </div>
+
+            <div class="cta-button-group">
+                <button type="button" class="cta-btn primary" onclick="window.triggerSiteVisitModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18"/></svg>
+                    Book a Private Site Visit
+                </button>
+                <button type="button" class="cta-btn secondary" onclick="window.downloadFloorplanBrochure()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Download Floorplan Specs
+                </button>
+            </div>
+            <button type="button" class="cta-replay-link" onclick="window.jumpToStop(0, false)">
+                ↻ Replay Architectural Tour from Blueprint
+            </button>
+        </div>
+    </div>
+
+    <!-- Interactive Modal: Book a Private Site Visit -->
+    <div id="modal-site-visit" class="interactive-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="msv-title" aria-hidden="true">
+        <div class="modal-card">
+            <button type="button" class="modal-close-btn" onclick="window.closeModal('modal-site-visit')" aria-label="Close modal">&times;</button>
+            <div class="modal-badge">JP NORTH AVIVA · WING A</div>
+            <h2 id="msv-title" class="modal-title">Book a Private Site Visit</h2>
+            <p class="modal-subtitle">Walk through the actual 27.96 Sq.M. (301 Sq.Ft.) 1 BHK show flat at North Garden City, Mira Road East. MahaRERA: P51700023940.</p>
+            
+            <form id="site-visit-form" onsubmit="window.submitBookingForm(event)" class="modal-form">
+                <div class="form-group">
+                    <label for="visitor-name">Full Name</label>
+                    <input type="text" id="visitor-name" required placeholder="e.g. Rahul Sharma" class="modal-input">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="visitor-phone">Phone Number</label>
+                        <input type="tel" id="visitor-phone" required placeholder="+91 98765 43210" class="modal-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="visitor-date">Preferred Date</label>
+                        <input type="date" id="visitor-date" required class="modal-input">
+                    </div>
+                </div>
+                <button type="submit" class="modal-submit-btn">Confirm Private Site Visit</button>
+            </form>
+
+            <div id="booking-success-state" class="booking-success-state" style="display: none;">
+                <div class="success-icon">OK</div>
+                <h3>Visit Request Confirmed!</h3>
+                <p>Thank you. A Senior JP Infra Relationship Executive will contact you within 30 minutes with gate pass details.</p>
+                <button type="button" class="modal-done-btn" onclick="window.closeModal('modal-site-visit')">Close Window</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Modal: Download Floorplan Specs -->
+    <div id="modal-floorplan-specs" class="interactive-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="mfs-title" aria-hidden="true">
+        <div class="modal-card modal-wide">
+            <button type="button" class="modal-close-btn" onclick="window.closeModal('modal-floorplan-specs')" aria-label="Close modal">&times;</button>
+            <div class="modal-badge">ARCHITECTURAL SPECIFICATION BREAKDOWN</div>
+            <h2 id="mfs-title" class="modal-title">JP North Aviva · Floorplan Specs</h2>
+            <p class="modal-subtitle">Wing A · Type R1 · Typical Floor (Flat A1 to A12) · MahaRERA: P51700023940</p>
+
+            <div class="specs-table-container">
+                <table class="specs-table">
+                    <thead>
+                        <tr>
+                            <th>Zone Name</th>
+                            <th>Metric (m)</th>
+                            <th>Imperial (ft)</th>
+                            <th>RERA Carpet</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Living &amp; Dining Sanctuary</td><td>2.75m &times; 3.95m</td><td>9'0" &times; 13'0"</td><td>10.86 m² [117 sq.ft]</td></tr>
+                        <tr><td>Gourmet Kitchen Alcove</td><td>1.95m &times; 1.85m</td><td>6'5" &times; 6'1"</td><td>3.61 m² [39 sq.ft]</td></tr>
+                        <tr><td>Bath &amp; W.C. Suite</td><td>1.15m &times; 1.30m</td><td>3'9" &times; 4'3"</td><td>1.50 m² [16 sq.ft]</td></tr>
+                        <tr><td>Master Bedroom Suite</td><td>2.45m &times; 2.75m</td><td>8'0" &times; 9'0"</td><td>6.74 m² [73 sq.ft]</td></tr>
+                        <tr><td>Enclosed Balcony Deck &amp; Utility</td><td>1.20m &times; 2.75m</td><td>3'11" &times; 9'0"</td><td>2.18 m² [23 sq.ft]</td></tr>
+                        <tr><td>Cupboard Niche</td><td>0.60m &times; 2.15m</td><td>2'0" &times; 7'1"</td><td>1.29 m² [14 sq.ft]</td></tr>
+                        <tr class="highlight-row"><td><strong>Total RERA Carpet Area</strong></td><td><strong>Clear Height: 2.85m</strong></td><td><strong>9'4" Slab Height</strong></td><td><strong>27.96 m² [301 sq.ft]</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-action-row">
+                <button type="button" class="modal-submit-btn" onclick="window.triggerDownloadAction()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;vertical-align:middle;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Download Official Sanctioned CAD Specifications (.txt)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graceful Hardware Fallback & Video Mode View -->
+    <div id="video-fallback-view" class="video-fallback-view" style="display: none;" aria-hidden="true">
+        <div class="vf-container">
+            <!-- Top Hero Bar -->
+            <header class="vf-header">
+                <div class="vf-brand">
+                    <span class="vf-badge" id="vf-status-badge">JP NORTH AVIVA · CINEMATIC PRESENTATION</span>
+                    <h1 class="vf-title">JP North Aviva</h1>
+                    <p class="vf-subtitle">1 BHK Residence · Wing A · Type R1 · 27.96 Sq.M. (301 Sq.Ft.) Carpet</p>
+                </div>
+                <div class="vf-actions">
+                    <button type="button" class="vf-mode-btn" onclick="window.switchExperienceMode('3d')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                        Switch to 3D Tour
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Layout: Video + Architectural Specs -->
+            <div class="vf-grid">
+                <!-- Video Player Column -->
+                <div class="vf-video-column">
+                    <div class="vf-video-frame">
+                        <video id="fallback-video" class="vf-video"
+                               src="./media/jp_north_aviva_walkthrough.mp4"
+                               autoplay muted loop playsinline controls preload="auto"
+                               poster="./verify_balcony_088.jpg">
+                            <p>Your browser does not support HTML5 video. <a href="./media/jp_north_aviva_walkthrough.mp4">Download the video directly</a>.</p>
+                        </video>
+                        <div class="vf-video-overlay-badge">1080P MASTER CINEMATIC FILM (24 FPS)</div>
+                    </div>
+
+                    <div class="vf-video-caption">
+                        <div class="vf-dot"></div>
+                        <span>Continuous spatial tour across Blueprint, Living Sanctuary, Kitchen Alcove, Designer Bath, Master Suite &amp; Enclosed Balcony.</span>
+                    </div>
+                </div>
+
+                <!-- Architectural Specs & CTAs Column -->
+                <div class="vf-specs-column">
+                    <div class="vf-card">
+                        <div class="vf-card-header">
+                            <span class="vf-tag">MahaRERA: P51700023940</span>
+                            <span class="vf-tag gold">WING A · TYPICAL FLOOR</span>
+                        </div>
+                        <h2 class="vf-card-title">Sanctioned Dimensions &amp; Layout</h2>
+
+                        <div class="vf-specs-table-wrapper">
+                            <table class="vf-specs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Zone Name</th>
+                                        <th>Metric (m)</th>
+                                        <th>Imperial (ft)</th>
+                                        <th>Carpet Area</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Living &amp; Dining</td><td>2.75m &times; 3.95m</td><td>9'0" &times; 13'0"</td><td>10.86 m² [117 sq.ft]</td></tr>
+                                    <tr><td>Kitchen Alcove</td><td>1.95m &times; 1.85m</td><td>6'5" &times; 6'1"</td><td>3.61 m² [39 sq.ft]</td></tr>
+                                    <tr><td>Bath &amp; W.C.</td><td>1.15m &times; 1.30m</td><td>3'9" &times; 4'3"</td><td>1.50 m² [16 sq.ft]</td></tr>
+                                    <tr><td>Master Bedroom</td><td>2.45m &times; 2.75m</td><td>8'0" &times; 9'0"</td><td>6.74 m² [73 sq.ft]</td></tr>
+                                    <tr><td>Enclosed Balcony</td><td>1.20m &times; 2.75m</td><td>3'11" &times; 9'0"</td><td>2.18 m² [23 sq.ft]</td></tr>
+                                    <tr><td>Cupboard Niche</td><td>0.60m &times; 2.15m</td><td>2'0" &times; 7'1"</td><td>1.29 m² [14 sq.ft]</td></tr>
+                                    <tr class="highlight-row"><td><strong>Total RERA Carpet</strong></td><td><strong>Clear Height: 2.85m</strong></td><td><strong>9'4" Slab</strong></td><td><strong>27.96 m² [301 sq.ft]</strong></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="vf-specs-highlights">
+                            <div class="vf-feature-item">
+                                <span class="vf-check">✓</span>
+                                <div><strong>Zero Space Wastage</strong> — Efficient plan engineered for maximum usable living volume.</div>
+                            </div>
+                            <div class="vf-feature-item">
+                                <span class="vf-check">✓</span>
+                                <div><strong>Private Balcony Deck</strong> — Enclosed glass deck with teak wood finish &amp; sunset view.</div>
+                            </div>
+                            <div class="vf-feature-item">
+                                <span class="vf-check">✓</span>
+                                <div><strong>Turnkey Luxury Finishes</strong> — Italian Calacatta vitrified tiles &amp; Grohe fixtures.</div>
+                            </div>
+                        </div>
+
+                        <!-- CTA Actions -->
+                        <div class="vf-cta-group">
+                            <button type="button" class="vf-cta-btn primary" onclick="window.triggerSiteVisitModal()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18"/></svg>
+                                Book a Private Site Visit
+                            </button>
+                            <button type="button" class="vf-cta-btn secondary" onclick="window.downloadFloorplanBrochure()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                Download Floorplan Specs
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Libraries: Lenis & GSAP ScrollTrigger -->
+    <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+
+    <!-- Three.js Module Import Map: Locked 0.164.1 Release for Core & All JSM Addons -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/",
+            "three/addons/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/controls/OrbitControls.js",
+            "three/addons/geometries/RoundedBoxGeometry.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/geometries/RoundedBoxGeometry.js",
+            "three/addons/environments/RoomEnvironment.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/environments/RoomEnvironment.js",
+            "three/addons/postprocessing/EffectComposer.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/EffectComposer.js",
+            "three/addons/postprocessing/RenderPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/RenderPass.js",
+            "three/addons/postprocessing/SSAOPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/SSAOPass.js",
+            "three/addons/postprocessing/OutputPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/OutputPass.js",
+            "three/addons/postprocessing/ShaderPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/ShaderPass.js",
+            "three/addons/postprocessing/UnrealBloomPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/UnrealBloomPass.js",
+            "three/addons/lights/RectAreaLightUniformsLib.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/lights/RectAreaLightUniformsLib.js",
+            "three/addons/exporters/GLTFExporter.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/exporters/GLTFExporter.js"
+        }
+    }
+    </script>
+
+    <!-- Pre-Scene Hardware Gatekeeper & Mode Controller -->
+    <script type="module" src="gate.js"></script>
+</body>
+</html>

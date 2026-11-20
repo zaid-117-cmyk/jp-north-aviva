@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>SSAO & RoomEnvironment Test</title>
+    <style>body { margin: 0; overflow: hidden; background: #000; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(800, 600);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xF8F6F0);
+
+// Environment
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment()).texture;
+
+const camera = new THREE.PerspectiveCamera(72, 800 / 600, 0.1, 100);
+camera.position.set(0, 1.45, 3);
+camera.lookAt(0, 1.0, 0);
+
+// Geometry
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(10, 10),
+    new THREE.MeshPhysicalMaterial({ color: 0xF0EDE6, roughness: 0.15, clearcoat: 1.0, clearcoatRoughness: 0.08 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const box = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x998878, roughness: 0.4 })
+);
+box.position.set(0, 0.5, 0);
+box.castShadow = true;
+scene.add(box);
+
+const light = new THREE.DirectionalLight(0xFFDF9E, 2.5);
+light.position.set(2, 4, 3);
+light.castShadow = true;
+light.shadow.bias = -0.0003;
+light.shadow.normalBias = 0.02;
+scene.add(light);
+scene.add(new THREE.AmbientLight(0xFFFFFF, 0.4));
+
+// Composer
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const ssaoPass = new SSAOPass(scene, camera, 800, 600);
+ssaoPass.kernelRadius = 0.4;
+ssaoPass.minDistance = 0.005;
+ssaoPass.maxDistance = 0.1;
+composer.addPass(ssaoPass);
+
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+composer.render();
+
+setTimeout(async () => {
+    try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        await fetch('/save_snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: 'test_ssao_result.jpg', image: dataUrl })
+        });
+        console.log("SSAO test saved successfully!");
+    } catch(e) {
+        console.error(e);
+    }
+}, 500);
+</script>
+</body>
+</html>

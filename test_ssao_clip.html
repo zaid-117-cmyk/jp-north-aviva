@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>SSAO & Clipping Test</title>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(800, 600);
+renderer.localClippingEnabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xF8F6F0);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment()).texture;
+
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.5);
+
+const camera = new THREE.PerspectiveCamera(72, 800 / 600, 0.1, 100);
+camera.position.set(0, 1.45, 3);
+camera.lookAt(0, 0.5, 0);
+
+const box = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x998878, clippingPlanes: [clipPlane] })
+);
+box.position.set(0, 0.5, 0);
+scene.add(box);
+
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const ssaoPass = new SSAOPass(scene, camera, 800, 600);
+ssaoPass.kernelRadius = 0.5;
+composer.addPass(ssaoPass);
+
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+composer.render();
+
+setTimeout(async () => {
+    try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        await fetch('/save_snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: 'test_ssao_clip.jpg', image: dataUrl })
+        });
+        console.log("Saved test_ssao_clip.jpg");
+    } catch(e) {
+        console.error(e);
+    }
+}, 500);
+</script>
+</body>
+</html>

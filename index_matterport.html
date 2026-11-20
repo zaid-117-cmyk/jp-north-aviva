@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JP North Aviva — 1 BHK (301 Sq.Ft.) Immersive 3D Walkthrough</title>
+    <style>
+        :root {
+            --wild-mushroom: #9E8D7C;
+            --whispering-smoke: #EBE7E1;
+            --beige: #D9CEBE;
+            --gold: #E5B56A;
+            --gold-bright: #F5CF8E;
+            --dark-bg: rgba(12, 14, 18, 0.85);
+            --border-glass: rgba(229, 181, 106, 0.28);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+        body { overflow: hidden; background: #080A0D; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+
+        /* Splash Screen / Entry Screen */
+        #splash {
+            position: fixed; inset: 0; z-index: 2000;
+            background: radial-gradient(circle at 50% 35%, #1F242C 0%, #0F1216 60%, #060709 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; cursor: pointer; transition: opacity 0.6s ease;
+        }
+        #splash.fade-out { opacity: 0; pointer-events: none; }
+
+        .splash-card {
+            max-width: 740px; width: 92%; background: rgba(16, 19, 25, 0.9);
+            border: 1px solid var(--border-glass); border-radius: 22px;
+            padding: 42px 48px; text-align: center; box-shadow: 0 40px 90px rgba(0,0,0,0.85), 0 0 50px rgba(229,181,106,0.12);
+            backdrop-filter: blur(25px);
+        }
+        .badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(229, 181, 106, 0.12); border: 1px solid rgba(229, 181, 106, 0.4);
+            color: var(--gold); padding: 6px 16px; border-radius: 30px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        .splash-card h1 {
+            font-size: 3rem; font-weight: 300; letter-spacing: 1.5px; margin-bottom: 6px;
+            background: linear-gradient(135deg, #FFFFFF 20%, #EBD4B4 60%, #C4985B 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .splash-card h2 {
+            font-size: 1.05rem; font-weight: 400; color: #9BA6B5; margin-bottom: 28px;
+        }
+        .meta-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 30px;
+        }
+        .meta-box {
+            background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px; padding: 14px 10px;
+        }
+        .meta-val { font-size: 1.45rem; font-weight: 700; color: var(--gold-bright); }
+        .meta-lbl { font-size: 0.68rem; color: #7B8797; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 4px; }
+
+        .palette-row {
+            display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 30px;
+            font-size: 0.75rem; color: #94A0B0;
+        }
+        .palette-swatch {
+            width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
+            display: inline-block; vertical-align: middle; margin-right: 4px;
+        }
+
+        .enter-btn {
+            width: 100%; padding: 18px; border: none; border-radius: 14px;
+            background: linear-gradient(135deg, #F5CF8E 0%, #D4A155 100%);
+            color: #111317; font-size: 1.05rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.8px; cursor: pointer; transition: all 0.25s ease;
+            box-shadow: 0 12px 35px rgba(212,161,85,0.4); margin-bottom: 22px;
+        }
+        .enter-btn:hover { transform: scale(1.02); box-shadow: 0 16px 45px rgba(212,161,85,0.55); }
+
+        .hints {
+            display: flex; justify-content: center; gap: 20px; font-size: 0.78rem; color: #6D7888;
+        }
+        .hints kbd {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            padding: 2px 7px; border-radius: 5px; color: #BFCAD8; font-family: monospace;
+        }
+
+        /* Top HUD Bar */
+        #top-hud {
+            position: fixed; top: 22px; left: 24px; right: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100; pointer-events: none;
+        }
+        .glass-panel {
+            background: var(--dark-bg); backdrop-filter: blur(18px);
+            border: 1px solid var(--border-glass); border-radius: 14px;
+            pointer-events: auto; box-shadow: 0 10px 35px rgba(0,0,0,0.45);
+        }
+
+        .room-status {
+            padding: 10px 20px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .room-tag {
+            font-size: 0.65rem; color: var(--gold); text-transform: uppercase; font-weight: 700; letter-spacing: 2px;
+        }
+        .room-name {
+            font-size: 1.15rem; font-weight: 600; color: #FFF; letter-spacing: 0.5px;
+        }
+
+        /* Room Navigation Bar */
+        .room-nav {
+            display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+        }
+        .room-nav-btn {
+            background: transparent; border: none; color: #9AA6B7;
+            padding: 8px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+        }
+        .room-nav-btn:hover { background: rgba(255,255,255,0.08); color: #FFF; }
+        .room-nav-btn.active { background: rgba(229,181,106,0.22); color: var(--gold-bright); font-weight: 600; }
+
+        .hud-actions {
+            display: flex; gap: 8px; padding: 6px 12px;
+        }
+        .hud-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            color: #C5D0DE; padding: 8px 14px; border-radius: 10px; font-size: 0.78rem;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+        }
+        .hud-btn:hover { background: rgba(229,181,106,0.2); border-color: var(--gold); color: #FFF; }
+
+        /* Minimap & Floor Plan Radar */
+        #minimap-card {
+            position: fixed; bottom: 24px; right: 24px; width: 230px; height: 270px;
+            z-index: 100; padding: 12px; pointer-events: auto; overflow: hidden;
+        }
+        .minimap-title {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.7rem; color: #8F9CAE; text-transform: uppercase; letter-spacing: 1.2px;
+            margin-bottom: 8px;
+        }
+        .minimap-title span:last-child { color: var(--gold); font-weight: 600; }
+        #minimapCanvas {
+            width: 100%; height: calc(100% - 24px); border-radius: 10px;
+            background: rgba(10, 12, 16, 0.7); display: block; cursor: crosshair;
+        }
+
+        /* Bottom Controls Helper */
+        #controls-bar {
+            position: fixed; bottom: 24px; left: 24px; z-index: 100;
+            padding: 8px 18px; font-size: 0.72rem; color: #788596; pointer-events: none;
+            display: flex; align-items: center; gap: 14px;
+        }
+        #controls-bar kbd {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            color: #B8C4D4; padding: 2px 6px; border-radius: 4px; font-family: monospace;
+        }
+
+        /* Hotspot Tooltip / Info Card */
+        #hotspot-card {
+            position: fixed; z-index: 1500; pointer-events: none;
+            background: rgba(14, 17, 22, 0.94); border: 1px solid var(--gold);
+            border-radius: 12px; padding: 14px 18px; max-width: 280px;
+            color: #FFF; box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+            backdrop-filter: blur(20px); opacity: 0; transform: translateY(10px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        #hotspot-card.show { opacity: 1; transform: translateY(0); }
+        .hotspot-category { font-size: 0.65rem; color: var(--gold); text-transform: uppercase; font-weight: 700; letter-spacing: 1.5px; }
+        .hotspot-title { font-size: 0.95rem; font-weight: 600; margin: 4px 0; }
+        .hotspot-desc { font-size: 0.75rem; color: #A0ACB9; line-height: 1.4; }
+
+        /* Reference Gallery Modal */
+        #gallery-modal {
+            position: fixed; inset: 0; background: rgba(8, 10, 14, 0.94);
+            backdrop-filter: blur(25px); z-index: 3000; display: none;
+            flex-direction: column; padding: 32px 42px; color: #fff;
+        }
+        #gallery-modal.open { display: flex; }
+        .gallery-top {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;
+        }
+        .gallery-top h2 { font-size: 1.65rem; font-weight: 400; color: #FFF; }
+        .gallery-close-btn {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #FFF; width: 42px; height: 42px; border-radius: 50%; font-size: 1.25rem;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .gallery-close-btn:hover { background: rgba(229,181,106,0.3); border-color: var(--gold); }
+        .gallery-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+            gap: 20px; overflow-y: auto; padding-right: 8px; flex: 1;
+        }
+        .gallery-item {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; overflow: hidden; transition: transform 0.2s, border-color 0.2s;
+            cursor: pointer;
+        }
+        .gallery-item:hover { transform: translateY(-4px); border-color: rgba(229,181,106,0.45); }
+        .gallery-img { width: 100%; height: 210px; object-fit: cover; }
+        .gallery-text { padding: 14px 18px; }
+        .gallery-tag { font-size: 0.65rem; color: var(--gold); text-transform: uppercase; font-weight: 700; letter-spacing: 1.2px; }
+        .gallery-name { font-size: 0.95rem; font-weight: 600; color: #FFF; margin: 3px 0; }
+        .gallery-info { font-size: 0.74rem; color: #8C99A8; line-height: 1.4; }
+
+        /* Cinematic Crossfade Warp Transition Overlay */
+        #warp-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 500;
+            opacity: 0; pointer-events: none; transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #warp-overlay.active { opacity: 0.75; }
+
+        /* Toast */
+        #toast {
+            position: fixed; top: 92px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: rgba(16, 19, 25, 0.92); border: 1px solid var(--gold);
+            color: #FFF; padding: 10px 24px; border-radius: 30px; font-size: 0.82rem;
+            z-index: 1600; pointer-events: none; opacity: 0; transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+        }
+        #toast.active { opacity: 1; transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div id="splash">
+    <div class="splash-card">
+        <div class="badge">✨ Photorealistic Virtual Tour · JP Infra</div>
+        <h1>JP North Aviva</h1>
+        <h2>Wing A · Type R1 · 1 BHK (301 Sq.Ft. Carpet) · 38-Storey High-Rise</h2>
+        
+        <div class="meta-grid">
+            <div class="meta-box">
+                <div class="meta-val">301</div>
+                <div class="meta-lbl">Carpet Sq.Ft.</div>
+            </div>
+            <div class="meta-box">
+                <div class="meta-val">38</div>
+                <div class="meta-lbl">Tower Floors</div>
+            </div>
+            <div class="meta-box">
+                <div class="meta-val">Airbnb</div>
+                <div class="meta-lbl">Ready Design</div>
+            </div>
+            <div class="meta-box">
+                <div class="meta-val">8 Viewpoints</div>
+                <div class="meta-lbl">Seamless Tour</div>
+            </div>
+        </div>
+
+        <div class="palette-row">
+            <span><span class="palette-swatch" style="background:#9E8D7C;"></span> Wild Mushroom</span>
+            <span><span class="palette-swatch" style="background:#EBE7E1;"></span> Whispering Smoke</span>
+            <span><span class="palette-swatch" style="background:#D9CEBE;"></span> Beige Linen</span>
+            <span><span class="palette-swatch" style="background:#D4B892;"></span> Light Oak</span>
+        </div>
+
+        <button class="enter-btn" id="enterBtn">▶ Step Inside Apartment</button>
+
+        <div class="hints">
+            <span><kbd>Mouse Drag</kbd> 360° Pano Look</span>
+            <span><kbd>Click Rings</kbd> Walk to Room</span>
+            <span><kbd>WASD</kbd> Step Forward / Back</span>
+            <span><kbd>Click Minimap</kbd> Teleport</span>
+        </div>
+    </div>
+</div>
+
+<!-- Top HUD Bar -->
+<div id="top-hud">
+    <div class="glass-panel room-status">
+        <span class="room-tag">Current Viewpoint</span>
+        <span class="room-name" id="currentRoomTitle">Living Lounge & Balcony</span>
+    </div>
+
+    <div class="glass-panel room-nav">
+        <button class="room-nav-btn active" data-node="living_main">🛋️ Living</button>
+        <button class="room-nav-btn" data-node="living_study">💻 Study Nook</button>
+        <button class="room-nav-btn" data-node="balcony">🌿 Balcony</button>
+        <button class="room-nav-btn" data-node="kitchen">🍳 Kitchen</button>
+        <button class="room-nav-btn" data-node="foyer">🚪 Foyer</button>
+        <button class="room-nav-btn" data-node="bedroom_bed">🛏️ Bedroom</button>
+        <button class="room-nav-btn" data-node="bedroom_vanity">🪞 Vanity View</button>
+        <button class="room-nav-btn" data-node="bath">🚿 Bath</button>
+    </div>
+
+    <div class="glass-panel hud-actions">
+        <button class="hud-btn" id="audioBtn">🔊 Sound: On</button>
+        <button class="hud-btn" id="galleryToggleBtn">📷 Gallery</button>
+        <button class="hud-btn" id="fullscreenBtn">⛶ Fullscreen</button>
+    </div>
+</div>
+
+<!-- Bottom Controls Helper -->
+<div class="glass-panel" id="controls-bar">
+    <span><kbd>Left Click + Drag</kbd> Look Around</span>
+    <span><kbd>WASD</kbd> Walk Between Rooms</span>
+    <span><kbd>Scroll</kbd> Zoom</span>
+    <span><kbd>Minimap</kbd> Instant Teleport</span>
+</div>
+
+<!-- Minimap Card -->
+<div class="glass-panel" id="minimap-card">
+    <div class="minimap-title">
+        <span>301 Sq.Ft. Blueprint</span>
+        <span id="minimap-node-label">Living</span>
+    </div>
+    <canvas id="minimapCanvas" width="230" height="236"></canvas>
+</div>
+
+<!-- Hotspot Hover Card -->
+<div id="hotspot-card">
+    <div class="hotspot-category" id="hc-category">Material Specification</div>
+    <div class="hotspot-title" id="hc-title">Asian Paints Wild Mushroom</div>
+    <div class="hotspot-desc" id="hc-desc">Warm greige feature wall finish creating an earthy, sophisticated backdrop.</div>
+</div>
+
+<!-- Cinematic Transition Overlay -->
+<div id="warp-overlay"></div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Gallery Drawer Modal -->
+<div id="gallery-modal">
+    <div class="gallery-top">
+        <div>
+            <h2>JP North Aviva — All Room Viewpoints & Specifications</h2>
+            <p style="color:#8C99A8; font-size:0.85rem; margin-top:4px;">Ultra-photorealistic viewpoints captured from Living Room to Bedroom suite</p>
+        </div>
+        <button class="gallery-close-btn" id="galleryClose">✕</button>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+        <!-- Rendered via JavaScript -->
+    </div>
+</div>
+
+<!-- Three.js + Modules -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// =========================================================
+// 1. PROCEDURAL LUXURY AMBIENCE & FOLEY SOUND
+// =========================================================
+class SoundEngine {
+    constructor() {
+        this.ctx = null;
+        this.enabled = true;
+    }
+    init() {
+        if (!this.ctx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AC();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+    }
+    playGlide() {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.38);
+    }
+    playChime() {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.22);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.25);
+    }
+}
+const sound = new SoundEngine();
+
+// =========================================================
+// 2. COMPLETE PHOTOREALISTIC NODES MAP (301 SQ.FT. LAYOUT)
+// =========================================================
+const NODES = {
+    living_main: {
+        id: 'living_main',
+        title: 'Living Lounge & Sunlit Balcony',
+        tag: 'Social Zone',
+        image: 'assets/node_living_main.jpg',
+        x: 1.8, z: 1.6,
+        yaw: 0, pitch: 0,
+        adjacent: ['living_study', 'balcony', 'kitchen', 'foyer'],
+        hotspots: [
+            {
+                pos: [12, -4, -30],
+                category: 'Interior Finishes',
+                title: 'Asian Paints Wild Mushroom',
+                desc: 'Warm greige accent wall creating an earthy, cozy aesthetic behind the L-shaped sofa.'
+            },
+            {
+                pos: [-22, 16, -18],
+                category: 'Ceiling Architecture',
+                title: 'Concealed 3000K LED Cove',
+                desc: 'Recessed perimeter tray ceiling washing warm-white ambient light across the ceiling.'
+            },
+            {
+                pos: [0, -22, -15],
+                category: 'Flooring',
+                title: 'Calacatta Glazed Vitrified Tiles',
+                desc: 'High-gloss Italian marble pattern with delicate golden-grey veining reflecting daylight.'
+            }
+        ]
+    },
+    living_study: {
+        id: 'living_study',
+        title: 'Dedicated Work / Study Nook & Media Wall',
+        tag: 'Productivity & Entertainment',
+        image: 'assets/node_living_study.jpg',
+        x: 1.4, z: 2.6,
+        yaw: Math.PI / 4, pitch: 0,
+        adjacent: ['living_main', 'foyer'],
+        hotspots: [
+            {
+                pos: [-18, 2, -25],
+                category: 'Furniture Scale',
+                title: 'Light Oak Work Desk & Olive Chair',
+                desc: 'Minimalist Scandinavian work desk with black steel hairpin frame and curved ergonomic chair.'
+            },
+            {
+                pos: [20, 4, -20],
+                category: 'Entertainment',
+                title: '55" OLED Smart TV & Floating Console',
+                desc: 'Wall-mounted slim OLED screen paired with a push-to-open light oak and matte white cabinet.'
+            },
+            {
+                pos: [0, 24, -10],
+                category: 'Lighting Fixture',
+                title: 'Branch Sputnik Chandelier',
+                desc: 'Matte black architectural multi-bulb chandelier with warm exposed Edison filament globes.'
+            }
+        ]
+    },
+    balcony: {
+        id: 'balcony',
+        title: 'Enclosed Sun Deck & High-Rise Balcony',
+        tag: 'Outdoor Oasis (38th Floor)',
+        image: 'assets/node_balcony.jpg',
+        x: 1.9, z: -0.6,
+        yaw: Math.PI, pitch: -0.05,
+        adjacent: ['living_main'],
+        hotspots: [
+            {
+                pos: [0, -20, 15],
+                category: 'Decking',
+                title: 'Teak Wood Deck Tiles',
+                desc: 'Natural interlocking teak wood flooring with satin outdoor weather seal.'
+            },
+            {
+                pos: [18, -4, 25],
+                category: 'Biophilic Design',
+                title: 'Tropical Potted Monstera & Ficus',
+                desc: 'Lush potted greenery flourishing in abundant morning natural daylight.'
+            },
+            {
+                pos: [0, 8, 30],
+                category: 'City Vista',
+                title: 'Sanjay Gandhi National Park Canopy',
+                desc: 'Panoramic views over the Mumbai high-rise corridor and lush protected forest hills.'
+            }
+        ]
+    },
+    kitchen: {
+        id: 'kitchen',
+        title: 'L-Shaped Modular Kitchen & Dining Nook',
+        tag: 'Culinary Space',
+        image: 'assets/node_kitchen.jpg',
+        x: 4.8, z: 1.2,
+        yaw: -Math.PI / 2, pitch: 0,
+        adjacent: ['living_main', 'foyer', 'bath'],
+        hotspots: [
+            {
+                pos: [16, -4, -22],
+                category: 'Countertop',
+                title: 'Black Quartz Platform Counter',
+                desc: 'Non-porous, scratch-resistant platform with flush induction ceramic cooktop.'
+            },
+            {
+                pos: [16, 12, -22],
+                category: 'Cabinetry',
+                title: 'Under-Cabinet Task LED Strip',
+                desc: 'Warm task illumination washing the backsplash for evening food preparation.'
+            }
+        ]
+    },
+    foyer: {
+        id: 'foyer',
+        title: 'Central Foyer & Bedroom Corridor',
+        tag: 'Circulation Hub',
+        image: 'assets/node_foyer.jpg',
+        x: 3.1, z: 3.8,
+        yaw: Math.PI / 2, pitch: 0,
+        adjacent: ['living_main', 'kitchen', 'bedroom_bed', 'bath'],
+        hotspots: [
+            {
+                pos: [-22, 2, -18],
+                category: 'Transition',
+                title: 'Master Bedroom Suite Entry',
+                desc: 'Dark walnut doorframe framing the warm glowing master bedroom cove lights.'
+            }
+        ]
+    },
+    bedroom_bed: {
+        id: 'bedroom_bed',
+        title: 'Master Suite & Tufted Headboard',
+        tag: 'Private Luxury Suite',
+        image: 'assets/node_bedroom_bed.jpg',
+        x: 1.3, z: 4.9,
+        yaw: 0, pitch: 0,
+        adjacent: ['bedroom_vanity', 'foyer'],
+        hotspots: [
+            {
+                pos: [0, 6, -30],
+                category: 'Accent Feature',
+                title: 'Wild Mushroom Feature Wall',
+                desc: 'Asian Paints Wild Mushroom recessed niche with twin minimalist abstract line artworks.'
+            },
+            {
+                pos: [0, -6, -26],
+                category: 'Bedding',
+                title: 'Geometric Tufted King Bed',
+                desc: 'Upholstered platform bed in warm beige linen with plush white duvet and accent pillows.'
+            },
+            {
+                pos: [22, 10, -24],
+                category: 'Lighting',
+                title: 'Brass Cylinder Drop Pendant',
+                desc: 'Suspended brass drop pendant lamp providing warm golden bedside reading light.'
+            }
+        ]
+    },
+    bedroom_vanity: {
+        id: 'bedroom_vanity',
+        title: 'Bedroom Vanity Desk & Balcony Sliders',
+        tag: 'Private Suite',
+        image: 'assets/node_bedroom_vanity.jpg',
+        x: 0.9, z: 4.2,
+        yaw: -Math.PI / 2, pitch: 0,
+        adjacent: ['bedroom_bed', 'foyer'],
+        hotspots: [
+            {
+                pos: [-18, 4, -20],
+                category: 'Vanity Station',
+                title: 'Backlit Circular Halo LED Mirror',
+                desc: 'Floating oak makeup desk with circular illuminated mirror and curved chair.'
+            },
+            {
+                pos: [22, 4, -18],
+                category: 'Glazing',
+                title: 'Full-Height Sliding Glass Door',
+                desc: 'Double-glazed acoustic sliders with sheer translucent voiles and charcoal blackout drapes.'
+            }
+        ]
+    },
+    bath: {
+        id: 'bath',
+        title: 'Designer Walk-In Spa Bathroom',
+        tag: 'Wellness & Spa',
+        image: 'assets/node_bath.jpg',
+        x: 5.1, z: 3.2,
+        yaw: -Math.PI / 2, pitch: 0,
+        adjacent: ['kitchen', 'foyer'],
+        hotspots: [
+            {
+                pos: [18, 6, -20],
+                category: 'Sanitaryware',
+                title: 'Walk-In Rain Shower Enclosure',
+                desc: 'Frameless toughened glass partition with chrome thermostatic overhead rain shower.'
+            },
+            {
+                pos: [-16, 2, -22],
+                category: 'Vanity',
+                title: 'Floating Oak Vanity & Backlit Mirror',
+                desc: 'Water-resistant natural oak vanity counter with undermount ceramic basin.'
+            }
+        ]
+    }
+};
+
+// =========================================================
+// 3. THREE.JS SPATIAL PANORAMA RIG SETUP
+// =========================================================
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.appendChild(renderer.domElement);
+
+const texLoader = new THREE.TextureLoader();
+
+// Pre-load all textures into cache for instantaneous switching
+const textureCache = {};
+for (const key in NODES) {
+    const n = NODES[key];
+    textureCache[key] = texLoader.load(n.image);
+    textureCache[key].colorSpace = THREE.SRGBColorSpace;
+}
+
+// Spherical Projection Dome
+const sphereGeo = new THREE.SphereGeometry(60, 60, 40);
+sphereGeo.scale(-1, 1, 1); // Invert faces inward
+
+const sphereMat = new THREE.MeshBasicMaterial({
+    map: textureCache.living_main,
+    transparent: true,
+    opacity: 1.0
+});
+const panoSphere = new THREE.Mesh(sphereGeo, sphereMat);
+scene.add(panoSphere);
+
+// Hotspot System in 3D Space
+const hotspotGroup = new THREE.Group();
+scene.add(hotspotGroup);
+
+// Floor Navigation Rings (Matterport Style)
+const navRingGroup = new THREE.Group();
+scene.add(navRingGroup);
+
+// Create Navigation Ring Sprite
+function makeNavRingTexture(label) {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 256;
+    const ctx = c.getContext('2d');
+
+    // Outer pulsating gold ring
+    ctx.strokeStyle = 'rgba(245, 207, 142, 0.9)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(128, 128, 90, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner glowing disc
+    const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 90);
+    grad.addColorStop(0, 'rgba(229, 181, 106, 0.6)');
+    grad.addColorStop(0.8, 'rgba(229, 181, 106, 0.15)');
+    grad.addColorStop(1, 'rgba(229, 181, 106, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(128, 128, 90, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Chevron forward arrow
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(96, 148);
+    ctx.lineTo(128, 108);
+    ctx.lineTo(160, 148);
+    ctx.stroke();
+
+    // Text Label below
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 6;
+    ctx.fillText(label, 128, 225);
+
+    return new THREE.CanvasTexture(c);
+}
+
+// Amenity Hotspot Pin Texture
+function makeHotspotPinTexture() {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 128;
+    const ctx = c.getContext('2d');
+
+    // Outer circle
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(64, 64, 45, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Gold core
+    ctx.fillStyle = '#F5CF8E';
+    ctx.beginPath();
+    ctx.arc(64, 64, 25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White center dot
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(64, 64, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(c);
+}
+const pinTexture = makeHotspotPinTexture();
+
+// =========================================================
+// 4. CAMERA CONTROLS & SMOOTH INTERPOLATION
+// =========================================================
+let isUserInteracting = false;
+let onMouseDownMouseX = 0, onMouseDownMouseY = 0;
+let lon = 0, onMouseDownLon = 0;
+let lat = 0, onMouseDownLat = 0;
+let targetLon = 0, targetLat = 0;
+let targetFov = 65;
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+document.addEventListener('pointerdown', (e) => {
+    // Ignore UI clicks
+    if (e.target.closest('#top-hud, #minimap-card, #controls-bar, #gallery-modal, #splash')) return;
+    isUserInteracting = true;
+    onMouseDownMouseX = e.clientX;
+    onMouseDownMouseY = e.clientY;
+    onMouseDownLon = lon;
+    onMouseDownLat = lat;
+});
+
+document.addEventListener('pointermove', (e) => {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    if (isUserInteracting) {
+        targetLon = (onMouseDownMouseX - e.clientX) * 0.14 + onMouseDownLon;
+        targetLat = (e.clientY - onMouseDownMouseY) * 0.14 + onMouseDownLat;
+    }
+    checkHotspotHover();
+});
+
+document.addEventListener('pointerup', () => { isUserInteracting = false; });
+
+document.addEventListener('wheel', (e) => {
+    if (e.target.closest('#gallery-modal')) return;
+    targetFov = Math.max(40, Math.min(85, targetFov + e.deltaY * 0.04));
+    e.preventDefault();
+}, { passive: false });
+
+// Click on Nav Ring or Hotspot
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#top-hud, #minimap-card, #controls-bar, #gallery-modal, #splash')) return;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check navigation rings
+    const navHits = raycaster.intersectObjects(navRingGroup.children, true);
+    if (navHits.length > 0) {
+        const targetNodeId = navHits[0].object.userData.targetNode;
+        if (targetNodeId) {
+            transitionToNode(targetNodeId);
+            return;
+        }
+    }
+
+    // Check info hotspots
+    const spotHits = raycaster.intersectObjects(hotspotGroup.children, true);
+    if (spotHits.length > 0) {
+        const data = spotHits[0].object.userData.info;
+        if (data) {
+            sound.playChime();
+            showHotspotCard(e.clientX, e.clientY, data);
+        }
+    } else {
+        hideHotspotCard();
+    }
+});
+
+// WASD Keyboard Navigation
+window.addEventListener('keydown', (e) => {
+    const currentNode = NODES[activeNodeId];
+    if (!currentNode) return;
+
+    if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        // Move to primary forward adjacent node
+        if (currentNode.adjacent && currentNode.adjacent.length > 0) {
+            transitionToNode(currentNode.adjacent[0]);
+        }
+    } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        // Move backward
+        if (currentNode.adjacent && currentNode.adjacent.length > 1) {
+            transitionToNode(currentNode.adjacent[currentNode.adjacent.length - 1]);
+        }
+    }
+});
+
+// =========================================================
+// 5. NODE TRANSITION & SPATIAL WARP DOLLY EFFECT
+// =========================================================
+let activeNodeId = 'living_main';
+const warpOverlay = document.getElementById('warp-overlay');
+const currentRoomTitleEl = document.getElementById('currentRoomTitle');
+const navButtons = document.querySelectorAll('.room-nav-btn');
+
+function transitionToNode(nodeId) {
+    if (nodeId === activeNodeId || !NODES[nodeId]) return;
+
+    const nextNode = NODES[nodeId];
+    sound.playGlide();
+
+    // Trigger subtle cinematic depth blur
+    warpOverlay.classList.add('active');
+
+    setTimeout(() => {
+        activeNodeId = nodeId;
+
+        // Swap texture
+        panoSphere.material.map = textureCache[nodeId];
+        panoSphere.material.needsUpdate = true;
+
+        // Reset camera orientation smoothly to ideal viewing angle
+        targetLon = nextNode.yaw * (180 / Math.PI);
+        targetLat = nextNode.pitch * (180 / Math.PI);
+
+        // Update 3D Markers & HUD
+        buildNodeInteractiveElements(nextNode);
+        updateHUD();
+        drawMinimap();
+
+        warpOverlay.classList.remove('active');
+        showToast(`📍 Entered ${nextNode.title}`);
+    }, 250);
+}
+
+function updateHUD() {
+    const node = NODES[activeNodeId];
+    currentRoomTitleEl.textContent = node.title;
+    navButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.node === activeNodeId);
+    });
+    document.getElementById('minimap-node-label').textContent = node.title.split(' ')[0];
+}
+
+// Build 3D Floor Navigation Rings and Spec Hotspots
+function buildNodeInteractiveElements(node) {
+    // Clear old elements
+    while (hotspotGroup.children.length > 0) hotspotGroup.remove(hotspotGroup.children[0]);
+    while (navRingGroup.children.length > 0) navRingGroup.remove(navRingGroup.children[0]);
+
+    // Build Navigation Rings on the floor for each adjacent node
+    node.adjacent.forEach((adjId) => {
+        const adjNode = NODES[adjId];
+        if (!adjNode) return;
+
+        // Compute relative vector in 3D floor plane
+        const dx = (adjNode.x - node.x);
+        const dz = (adjNode.z - node.z);
+        const angle = Math.atan2(dz, dx);
+        const dist = 28; // placed on floor radius
+
+        const ringTex = makeNavRingTexture(adjNode.title.split('&')[0].trim());
+        const spriteMat = new THREE.SpriteMaterial({
+            map: ringTex,
+            transparent: true,
+            depthTest: false
+        });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.scale.set(11, 11, 1);
+        sprite.position.set(Math.cos(angle) * dist, -18, Math.sin(angle) * dist);
+        sprite.userData = { targetNode: adjId };
+        navRingGroup.add(sprite);
+    });
+
+    // Build Amenity Spec Hotspots
+    if (node.hotspots) {
+        node.hotspots.forEach(hp => {
+            const pinMat = new THREE.SpriteMaterial({
+                map: pinTexture,
+                transparent: true,
+                depthTest: false
+            });
+            const pin = new THREE.Sprite(pinMat);
+            pin.scale.set(4.5, 4.5, 1);
+            pin.position.set(hp.pos[0], hp.pos[1], hp.pos[2]);
+            pin.userData = { info: hp };
+            hotspotGroup.add(pin);
+        });
+    }
+}
+
+// Hotspot Hover Interaction
+const hotspotCard = document.getElementById('hotspot-card');
+function checkHotspotHover() {
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(hotspotGroup.children, true);
+    if (hits.length > 0) {
+        document.body.style.cursor = 'pointer';
+    } else {
+        const navHits = raycaster.intersectObjects(navRingGroup.children, true);
+        document.body.style.cursor = navHits.length > 0 ? 'pointer' : 'default';
+    }
+}
+
+function showHotspotCard(cx, cy, data) {
+    document.getElementById('hc-category').textContent = data.category;
+    document.getElementById('hc-title').textContent = data.title;
+    document.getElementById('hc-desc').textContent = data.desc;
+
+    hotspotCard.style.left = `${Math.min(window.innerWidth - 300, cx + 18)}px`;
+    hotspotCard.style.top = `${Math.min(window.innerHeight - 160, cy + 18)}px`;
+    hotspotCard.classList.add('show');
+}
+function hideHotspotCard() {
+    hotspotCard.classList.remove('show');
+}
+
+// =========================================================
+// 6. INTERACTIVE 301 SQ.FT. FLOOR PLAN RADAR MINIMAP
+// =========================================================
+const mCanvas = document.getElementById('minimapCanvas');
+const mCtx = mCanvas.getContext('2d');
+const sc = 28;
+const ox = 26, oz = 46;
+
+// Precise Architectural Room Polygons (301 sq ft blueprint)
+const BLUEPRINT_ROOMS = [
+    { id: 'living', name: 'LIVING', x: 0.14, z: 0.14, w: 3.80, d: 3.30, color: '#9E8D7C' },
+    { id: 'balcony', name: 'DECK', x: 0.14, z: -1.30, w: 3.80, d: 1.30, color: '#417E45' },
+    { id: 'kitchen', name: 'KITCHEN', x: 4.08, z: 0.14, w: 2.30, d: 2.10, color: '#D4A155' },
+    { id: 'foyer', name: 'FOYER', x: 2.60, z: 3.44, w: 1.34, d: 1.20, color: '#64748B' },
+    { id: 'bedroom', name: 'BEDROOM', x: 0.14, z: 3.44, w: 2.32, d: 3.40, color: '#D9CEBE' },
+    { id: 'bath', name: 'BATH', x: 4.08, z: 2.38, w: 2.30, d: 1.80, color: '#475569' },
+    { id: 'wc', name: 'W.C.', x: 4.08, z: 4.32, w: 2.30, d: 1.20, color: '#334155' }
+];
+
+function drawMinimap() {
+    mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height);
+
+    // Draw Room Footprints
+    BLUEPRINT_ROOMS.forEach(r => {
+        const rx = r.x * sc + ox;
+        const ry = (6.8 - r.z - r.d) * sc + oz;
+        const rw = r.w * sc;
+        const rh = r.d * sc;
+
+        mCtx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        mCtx.fillRect(rx, ry, rw, rh);
+
+        mCtx.strokeStyle = 'rgba(229, 181, 106, 0.45)';
+        mCtx.lineWidth = 1;
+        mCtx.strokeRect(rx, ry, rw, rh);
+
+        // Room Labels
+        mCtx.fillStyle = '#94A3B8';
+        mCtx.font = '7px sans-serif';
+        mCtx.textAlign = 'center';
+        mCtx.fillText(r.name, rx + rw / 2, ry + rh / 2 + 2);
+    });
+
+    // Draw Viewpoint Station Dots
+    for (const key in NODES) {
+        const n = NODES[key];
+        const nx = n.x * sc + ox;
+        const ny = (6.8 - n.z) * sc + oz;
+
+        const isCurrent = (key === activeNodeId);
+        mCtx.fillStyle = isCurrent ? '#F5CF8E' : 'rgba(255,255,255,0.4)';
+        mCtx.beginPath();
+        mCtx.arc(nx, ny, isCurrent ? 5 : 3.5, 0, Math.PI * 2);
+        mCtx.fill();
+
+        if (isCurrent) {
+            mCtx.strokeStyle = '#FFFFFF';
+            mCtx.lineWidth = 1.5;
+            mCtx.stroke();
+        }
+    }
+
+    // Dynamic Camera Radar Frustum Cone
+    const cur = NODES[activeNodeId];
+    if (cur) {
+        const cx = cur.x * sc + ox;
+        const cy = (6.8 - cur.z) * sc + oz;
+        const rad = (lon) * (Math.PI / 180) - Math.PI / 2;
+
+        mCtx.save();
+        mCtx.translate(cx, cy);
+        mCtx.rotate(rad);
+
+        // FOV cone
+        const fov = 0.55;
+        const coneDist = 38;
+        const grad = mCtx.createRadialGradient(0, 0, 4, 0, 0, coneDist);
+        grad.addColorStop(0, 'rgba(245, 207, 142, 0.55)');
+        grad.addColorStop(1, 'rgba(245, 207, 142, 0)');
+        mCtx.fillStyle = grad;
+
+        mCtx.beginPath();
+        mCtx.moveTo(0, 0);
+        mCtx.arc(0, 0, coneDist, -fov, fov);
+        mCtx.closePath();
+        mCtx.fill();
+
+        mCtx.restore();
+    }
+}
+
+// Click Minimap to Jump to Nearest Viewpoint
+mCanvas.addEventListener('click', (e) => {
+    const rect = mCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const key in NODES) {
+        const n = NODES[key];
+        const nx = n.x * sc + ox;
+        const ny = (6.8 - n.z) * sc + oz;
+        const d = Math.hypot(mx - nx, my - ny);
+        if (d < minDist) {
+            minDist = d;
+            nearest = key;
+        }
+    }
+
+    if (nearest && minDist < 35) {
+        transitionToNode(nearest);
+    }
+});
+
+// =========================================================
+// 7. GALLERY DRAWER & UI WIRING
+// =========================================================
+const galleryModal = document.getElementById('gallery-modal');
+const galleryGrid = document.getElementById('galleryGrid');
+
+// Build gallery cards
+for (const key in NODES) {
+    const n = NODES[key];
+    const card = document.createElement('div');
+    card.className = 'gallery-item';
+    card.innerHTML = `
+        <img class="gallery-img" src="${n.image}" alt="${n.title}">
+        <div class="gallery-text">
+            <span class="gallery-tag">${n.tag}</span>
+            <div class="gallery-name">${n.title}</div>
+            <div class="gallery-info">Click to jump directly into this 360° viewpoint.</div>
+        </div>
+    `;
+    card.addEventListener('click', () => {
+        transitionToNode(key);
+        galleryModal.classList.remove('open');
+    });
+    galleryGrid.appendChild(card);
+}
+
+document.getElementById('galleryToggleBtn').addEventListener('click', () => {
+    galleryModal.classList.add('open');
+});
+document.getElementById('galleryClose').addEventListener('click', () => {
+    galleryModal.classList.remove('open');
+});
+
+// Top Nav Room Switcher Buttons
+navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        transitionToNode(btn.dataset.node);
+    });
+});
+
+// Fullscreen Toggle
+document.getElementById('fullscreenBtn').addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+});
+
+// Audio Toggle
+const audioBtn = document.getElementById('audioBtn');
+audioBtn.addEventListener('click', () => {
+    sound.enabled = !sound.enabled;
+    audioBtn.textContent = sound.enabled ? '🔊 Sound: On' : '🔇 Sound: Off';
+    showToast(sound.enabled ? 'Sound Effects Enabled' : 'Sound Effects Muted');
+});
+
+// Toast notification helper
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('active');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('active'), 2600);
+}
+
+// Splash Screen Start Button
+document.getElementById('enterBtn').addEventListener('click', () => {
+    sound.init();
+    document.getElementById('splash').classList.add('fade-out');
+    showToast('✨ Welcome to JP North Aviva (1 BHK 301 Sq.Ft.)');
+});
+
+// =========================================================
+// 8. RENDER ANIMATION LOOP
+// =========================================================
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+
+    // Smooth inertia camera rotation
+    lon += (targetLon - lon) * 0.12;
+    lat += (targetLat - lat) * 0.12;
+    lat = Math.max(-85, Math.min(85, lat));
+
+    camera.fov += (targetFov - camera.fov) * 0.15;
+    camera.updateProjectionMatrix();
+
+    const phi = THREE.MathUtils.degToRad(90 - lat);
+    const theta = THREE.MathUtils.degToRad(lon);
+
+    const target = new THREE.Vector3();
+    target.x = 500 * Math.sin(phi) * Math.cos(theta);
+    target.y = 500 * Math.cos(phi);
+    target.z = 500 * Math.sin(phi) * Math.sin(theta);
+    camera.lookAt(target);
+
+    // Gentle pulse animation on navigation rings
+    const time = clock.getElapsedTime();
+    navRingGroup.children.forEach((sprite, idx) => {
+        const s = 11 + Math.sin(time * 3 + idx) * 0.8;
+        sprite.scale.set(s, s, 1);
+    });
+
+    drawMinimap();
+    renderer.render(scene, camera);
+}
+
+// Initialize First Node
+buildNodeInteractiveElements(NODES.living_main);
+updateHUD();
+animate();
+
+// Window Resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    drawMinimap();
+});
+</script>
+</body>
+</html>

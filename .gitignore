@@ -1,0 +1,21 @@
+# Chrome temporary testing profiles and caches
+chromeprofile/
+chromeprofile_new/
+.system_generated/
+*.log
+
+# Video generation frame cache
+frames_final_walkthrough/
+
+# Large redundant video archives at root (active site video is in media/jp_north_aviva_walkthrough.mp4)
+/*.mp4
+!media/jp_north_aviva_walkthrough.mp4
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
