@@ -6296,11 +6296,11 @@ const ROOM_DATA = {
         heightM: "2.85 M (9'4\" FT) Clear Height",
         heightF: "9'4\" FT (2.85 M) Clear Height",
         finishes: "800×800mm High-Gloss Italian Glazed Vitrified Tiles (GVT), Gypsum smooth plaster with Asian Paints Royale Low-VOC luxury emulsion.",
-        amenities: "Concealed copper wiring, Legrand Arteor modular switches, pre-piped Daikin split AC sleeve, high-speed FTTH fiber point.",
+        amenities: "Inverter Split AC (24°C digital display), 50\" 4K Smart TV (Indicative Staging) with Ambilight backlighting, recessed 3000K architectural warm LED downlights.",
         pitchPoints: [
             "Full-height French sliding window maximizing natural daylight and fresh air cross-ventilation.",
             "Dedicated 4-seater dining enclave directly adjacent to the gourmet kitchen alcove.",
-            "Integrated entertainment wall pre-wired for 65\" 4K OLED TV and hidden cable management."
+            "Integrated entertainment wall pre-wired for 50\" 4K Smart TV (Indicative Staging) and hidden cable management."
         ]
     },
     3: {
