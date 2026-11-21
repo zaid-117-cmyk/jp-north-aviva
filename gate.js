@@ -333,6 +333,7 @@ function initGatekeeper() {
     window.downloadFloorplanBrochure = downloadFloorplanBrochure;
     window.submitBookingForm = submitBookingForm;
     window.triggerDownloadAction = triggerDownloadAction;
+    window.toggleRoomCard = window.toggleRoomCard || function() { window.openModal('modal-floorplan-specs'); };
     window.isHardwareCapable = () => capabilityReport.capable;
     window.hardwareReport = capabilityReport;
 

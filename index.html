@@ -12,9 +12,10 @@
 
     <!-- High-Resolution Architectural Favicon (Eliminates 404 in DevTools Console) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231A1C1E'/%3E%3Cpath d='M30 80V25L70 45V80H55V60H45V80Z' fill='%23C49A58'/%3E%3Ccircle cx='50' cy='32' r='5' fill='%23F8F6F0'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" href="./favicon.ico">
 
     <!-- Stylesheet -->
-    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -51,32 +52,39 @@
 
             <!-- Navigation Controls: Global Unit Toggle & Scrub Buttons -->
             <div class="nav-controls-group">
-                <!-- Compact Frosted-Glass SQ.M | SQ.FT Toggle Pill -->
-                <div class="unit-toggle-wrapper" id="header-unit-toggle">
-                    <span class="unit-toggle-title">DIMENSIONS</span>
-                    <div class="unit-segmented-control" role="group" aria-label="Dimension Unit Toggle">
-                        <button type="button" class="unit-pill active" data-unit="metric" onclick="window.setGlobalUnit('metric')">SQ.M</button>
-                        <button type="button" class="unit-pill" data-unit="imperial" onclick="window.setGlobalUnit('imperial')">SQ.FT</button>
+                <!-- Top Row Controls -->
+                <div class="nav-top-row">
+                    <!-- Compact Frosted-Glass SQ.M | SQ.FT Toggle Pill -->
+                    <div class="unit-toggle-wrapper" id="header-unit-toggle">
+                        <span class="unit-toggle-title">DIMENSIONS</span>
+                        <div class="unit-segmented-control" role="group" aria-label="Dimension Unit Toggle">
+                            <button type="button" class="unit-pill active" data-unit="metric" onclick="window.setGlobalUnit('metric')">SQ.M</button>
+                            <button type="button" class="unit-pill" data-unit="imperial" onclick="window.setGlobalUnit('imperial')">SQ.FT</button>
+                        </div>
                     </div>
+
+                    <!-- Direct Room Specs Button (Quick Access for Mobile & Desktop) -->
+                    <button type="button" id="header-specs-btn" class="header-specs-btn" onclick="window.toggleRoomCard()" title="Explore Sanctioned Architectural Specifications">📋 Specs</button>
+
+                    <!-- Performance & Quality Mode Switcher (⚡ 60 FPS Turbo vs 💎 Studio Visuals) -->
+                    <button type="button" id="header-perf-toggle" class="mode-toggle-btn perf-toggle-btn" onclick="window.togglePerformanceMode()" title="Toggle between 60 FPS Turbo Mode and Studio Visuals">⚡ 60 FPS Turbo</button>
+
+                    <!-- Manual Experience Mode Switcher (3D Spatial vs Lite Video) -->
+                    <button type="button" id="header-mode-toggle" class="mode-toggle-btn" onclick="window.toggleExperienceMode()" title="Toggle between 3D Spatial Walkthrough and High-Definition Video Mode">🎬 Video Mode</button>
                 </div>
 
-                <!-- Performance & Quality Mode Switcher (⚡ 60 FPS Turbo vs 💎 Studio Visuals) -->
-                <button type="button" id="header-perf-toggle" class="mode-toggle-btn perf-toggle-btn" onclick="window.togglePerformanceMode()" title="Toggle between 60 FPS Turbo Mode and Studio Visuals">⚡ 60 FPS Turbo</button>
-
-                <!-- Manual Experience Mode Switcher (3D Spatial vs Lite Video) -->
-                <button type="button" id="header-mode-toggle" class="mode-toggle-btn" onclick="window.toggleExperienceMode()" title="Toggle between 3D Spatial Walkthrough and High-Definition Video Mode">🎬 Video Mode</button>
-
-                <!-- Architectural Scrub Controls -->
-                <div class="scrub-buttons-container">
-                    <button onclick="window.jumpToStop(0)" class="scrub-btn">0 Plan</button>
-                    <button onclick="window.jumpToStop(1)" class="scrub-btn">1 Living Air</button>
-                    <button onclick="window.jumpToStop(2)" class="scrub-btn">2 Living Hold</button>
-                    <button onclick="window.jumpToStop(3)" class="scrub-btn">3 Kitchen Air</button>
-                    <button onclick="window.jumpToStop(4)" class="scrub-btn">4 Kitchen Hold</button>
-                    <button onclick="window.jumpToStop(5)" class="scrub-btn">5 Bed Air</button>
-                    <button onclick="window.jumpToStop(6)" class="scrub-btn">6 Bed Hold</button>
-                    <button onclick="window.jumpToStop(7)" class="scrub-btn highlight-balcony">7 Balcony Hold</button>
-                    <button type="button" onclick="window.exportSceneToGLTF()" class="scrub-btn highlight-gold" title="Export 3D Geometry to GLB for Blender Lighting Baking">&#x2913; Export for Blender (.glb)</button>
+                <!-- Architectural Scrub Controls: 9 Room Jump Indicators in Scrollable Strip -->
+                <div class="scrub-buttons-container" id="scrub-buttons-strip" role="toolbar" aria-label="Room Jump Navigation">
+                    <button type="button" onclick="window.jumpToStop(0)" class="scrub-btn" data-stop="0">01 Blueprint</button>
+                    <button type="button" onclick="window.jumpToStop(1)" class="scrub-btn" data-stop="1">02 Walls Rise</button>
+                    <button type="button" onclick="window.jumpToStop(2)" class="scrub-btn" data-stop="2">03 Living Room</button>
+                    <button type="button" onclick="window.jumpToStop(3)" class="scrub-btn" data-stop="3">04 Kitchen</button>
+                    <button type="button" onclick="window.jumpToStop(4)" class="scrub-btn" data-stop="4">05 Bath &amp; W.C.</button>
+                    <button type="button" onclick="window.jumpToStop(5)" class="scrub-btn" data-stop="5">06 Bedroom</button>
+                    <button type="button" onclick="window.jumpToStop(6)" class="scrub-btn highlight-balcony" data-stop="6">07 Balcony</button>
+                    <button type="button" onclick="window.jumpToStop(7)" class="scrub-btn highlight-gold" data-stop="7">08 Sunset</button>
+                    <button type="button" onclick="window.jumpToStop(8)" class="scrub-btn highlight-gold" data-stop="8">09 Finale</button>
+                    <button type="button" onclick="window.exportSceneToGLTF()" class="scrub-btn highlight-export" title="Export 3D Geometry to GLB for Blender Lighting Baking">&#x2913; Export GLB</button>
                 </div>
             </div>
         </header>
@@ -92,9 +100,9 @@
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" id="progress-bar-fill"></div>
                 </div>
-                <div class="scroll-hint">
-                    <span>Scroll down</span>
-                    <kbd>↓</kbd> or <kbd>Wheel</kbd> to travel through rooms
+                <div class="scroll-hint" id="scroll-hint">
+                    <span class="desktop-hint"><span>Scroll down</span> <kbd>↓</kbd> or <kbd>Wheel</kbd> to travel through rooms</span>
+                    <span class="touch-hint"><span>Swipe up</span> to walk through rooms</span>
                 </div>
             </div>
         </footer>
@@ -166,11 +174,19 @@
                     <li>Large format porcelain floor tiles create expansive visual perception.</li>
                 </ul>
             </div>
+
+            <!-- Room Navigation Bar (Prev / Next Room) -->
+            <div class="rc-nav-footer">
+                <button type="button" class="rc-nav-btn prev" onclick="window.navPrevRoom()" aria-label="Previous Room">&larr; Prev</button>
+                <span class="rc-nav-counter" id="rc-nav-counter">Room 1 of 6</span>
+                <button type="button" class="rc-nav-btn next" onclick="window.navNextRoom()" aria-label="Next Room">Next &rarr;</button>
+            </div>
+
             <p class="rc-footnote">*Furniture, appliances, and finishes shown are indicative show-flat visualization.</p>
         </div>
     </div>
 
-        <!-- Closing Pitch & Site Visit CTA Card (Appears at 92%-100% Sunset Finale) -->
+    <!-- Closing Pitch & Site Visit CTA Card (Appears at 92%-100% Sunset Finale) -->
     <div id="closing-cta-card" class="closing-cta-card" aria-hidden="true">
         <div class="cta-glass-panel">
             <div class="cta-top-row">
@@ -190,7 +206,7 @@
                     <span class="chip-lbl">Teak Deck & Utility</span>
                 </div>
                 <div class="cta-feature-chip">
-                    <span class="chip-val">Luxury PBR</span>
+                    <span class="chip-val">Premium Specs</span>
                     <span class="chip-lbl">Turnkey Finishes</span>
                 </div>
             </div>
@@ -203,6 +219,10 @@
                 <button type="button" class="cta-btn secondary" onclick="window.downloadFloorplanBrochure()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                     Download Floorplan Specs
+                </button>
+                <button type="button" class="cta-btn replay-btn" onclick="window.jumpToStop(0, false)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    Replay Walkthrough &uarr;
                 </button>
             </div>
             <button type="button" class="cta-replay-link" onclick="window.jumpToStop(0, false)">
@@ -256,7 +276,7 @@
             <h2 id="mfs-title" class="modal-title">JP North Aviva · Floorplan Specs</h2>
             <p class="modal-subtitle">Wing A · Type R1 · Typical Floor (Flat A1 to A12) · MahaRERA: P51700023940</p>
 
-            <div class="specs-table-container">
+            <div class="specs-table-container specs-table-scroll">
                 <table class="specs-table">
                     <thead>
                         <tr>
@@ -336,7 +356,7 @@
                         </div>
                         <h2 class="vf-card-title">Sanctioned Dimensions &amp; Layout</h2>
 
-                        <div class="vf-specs-table-wrapper">
+                        <div class="vf-specs-table-wrapper specs-table-scroll">
                             <table class="vf-specs-table">
                                 <thead>
                                     <tr>

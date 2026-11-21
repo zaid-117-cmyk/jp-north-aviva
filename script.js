@@ -6398,7 +6398,58 @@ function renderRoomCardData(d) {
             pitchElem.appendChild(li);
         });
     }
+
+    if (window.updateRoomNavCounter) {
+        window.updateRoomNavCounter(currentActiveStop !== null ? currentActiveStop : 2);
+    }
 }
+
+// Sequential Architectural Stops for Prev/Next Navigation
+const ARCH_ROOM_SEQUENCE = [
+    { stopId: 0, jumpIdx: 0, label: "01 Blueprint Sheet" },
+    { stopId: 2, jumpIdx: 2, label: "03 Living & Dining Sanctuary" },
+    { stopId: 3, jumpIdx: 3, label: "04 Gourmet Kitchen Alcove" },
+    { stopId: 4, jumpIdx: 4, label: "05 Bath & W.C. Suite" },
+    { stopId: 5, jumpIdx: 5, label: "06 Master Bedroom Suite" },
+    { stopId: 6, jumpIdx: 6, label: "07 Balcony Deck & Utility" }
+];
+
+window.updateRoomNavCounter = function(stopId) {
+    const counter = document.getElementById('rc-nav-counter');
+    if (!counter) return;
+    const foundIdx = ARCH_ROOM_SEQUENCE.findIndex(r => r.stopId === stopId);
+    if (foundIdx !== -1) {
+        counter.textContent = `Room ${foundIdx + 1} of ${ARCH_ROOM_SEQUENCE.length}`;
+    } else {
+        counter.textContent = `Room 2 of ${ARCH_ROOM_SEQUENCE.length}`;
+    }
+};
+
+window.navPrevRoom = function() {
+    let currentIdx = ARCH_ROOM_SEQUENCE.findIndex(r => r.stopId === currentActiveStop);
+    if (currentIdx === -1) currentIdx = 1;
+    const prevIdx = (currentIdx - 1 + ARCH_ROOM_SEQUENCE.length) % ARCH_ROOM_SEQUENCE.length;
+    const targetRoom = ARCH_ROOM_SEQUENCE[prevIdx];
+    currentActiveStop = targetRoom.stopId;
+    window.jumpToStop(targetRoom.jumpIdx);
+    if (ROOM_DATA[targetRoom.stopId]) {
+        renderRoomCardData(ROOM_DATA[targetRoom.stopId]);
+    }
+    window.updateRoomNavCounter(targetRoom.stopId);
+};
+
+window.navNextRoom = function() {
+    let currentIdx = ARCH_ROOM_SEQUENCE.findIndex(r => r.stopId === currentActiveStop);
+    if (currentIdx === -1) currentIdx = 1;
+    const nextIdx = (currentIdx + 1) % ARCH_ROOM_SEQUENCE.length;
+    const targetRoom = ARCH_ROOM_SEQUENCE[nextIdx];
+    currentActiveStop = targetRoom.stopId;
+    window.jumpToStop(targetRoom.jumpIdx);
+    if (ROOM_DATA[targetRoom.stopId]) {
+        renderRoomCardData(ROOM_DATA[targetRoom.stopId]);
+    }
+    window.updateRoomNavCounter(targetRoom.stopId);
+};
 
 window.openRoomCard = function(idx) {
     if (idx === null || idx === undefined) idx = currentActiveStop !== null ? currentActiveStop : 2;
@@ -6524,6 +6575,26 @@ function updateUI() {
                 ctaCard.setAttribute('aria-hidden', showCTA ? 'false' : 'true');
             }
         }
+
+        // Synchronize Active Room Highlight on 9 Scrub Buttons
+        const scrubButtons = document.querySelectorAll('.scrub-btn[data-stop]');
+        if (scrubButtons && scrubButtons.length > 0) {
+            let activeStopIdx = 0;
+            if (p < 0.10) activeStopIdx = 0;
+            else if (p < 0.22) activeStopIdx = 1;
+            else if (p < 0.38) activeStopIdx = 2;
+            else if (p < 0.52) activeStopIdx = 3;
+            else if (p < 0.65) activeStopIdx = 4;
+            else if (p < 0.78) activeStopIdx = 5;
+            else if (p < 0.88) activeStopIdx = 6;
+            else if (p < 0.96) activeStopIdx = 7;
+            else activeStopIdx = 8;
+
+            scrubButtons.forEach(btn => {
+                const stopVal = parseInt(btn.dataset.stop, 10);
+                btn.classList.toggle('active', stopVal === activeStopIdx);
+            });
+        }
     } catch (err) {
         console.warn('[updateUI] Error updating UI:', err);
     }
@@ -6576,24 +6647,37 @@ window.triggerDownloadAction = function() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 };
+
 window.jumpToStop = function(stopIndex, immediate = false) {
     const totalH = window.innerHeight * 8;
     const targets = [
-        0,
-        totalH * 0.15,
-        totalH * 0.32,
-        totalH * 0.44,
-        totalH * 0.58,
-        totalH * 0.72,
-        totalH * 0.86,
-        totalH * 0.98
+        0,              // 0: Blueprint (0%)
+        totalH * 0.15,  // 1: Walls Rise (15%)
+        totalH * 0.32,  // 2: Living Room (32%)
+        totalH * 0.44,  // 3: Kitchen Alcove (44%)
+        totalH * 0.58,  // 4: Bath & W.C. (58%)
+        totalH * 0.72,  // 5: Bedroom (72%)
+        totalH * 0.86,  // 6: Balcony Deck (86%)
+        totalH * 0.94,  // 7: Sunset (94%)
+        totalH * 0.99   // 8: Finale (99%)
     ];
     if (targets[stopIndex] !== undefined) {
         lenis.scrollTo(targets[stopIndex], { immediate: immediate });
     }
 };
 
-window.applyProgressToScene = function(p) {
+// Detect touch devices and ensure scroll hint displays appropriate wording
+if (window.matchMedia('(pointer: coarse)').matches) {
+    const hint = document.getElementById('scroll-hint');
+    if (hint) {
+        const d = hint.querySelector('.desktop-hint');
+        const t = hint.querySelector('.touch-hint');
+        if (d) d.style.display = 'none';
+        if (t) t.style.display = 'inline-flex';
+    }
+}
+
+function applyProgressToScene(p) {
     try {
     tl.progress(p);
     camState.progress = p;
@@ -6666,7 +6750,8 @@ window.applyProgressToScene = function(p) {
     } catch (err) {
         console.warn('[applyProgressToScene] Exception during progress update:', err);
     }
-};
+}
+window.applyProgressToScene = applyProgressToScene;
 window.renderProgressAt = window.applyProgressToScene;
 window.tl = tl;
 
@@ -6746,8 +6831,8 @@ console.log('[Renderer] Pre-compiling 100% of shaders across all rooms...');
 renderer.compile(scene, camera);
 renderer.render(scene, camera); // Executes GL program link on all materials
 
-// 5. Pre-warm key camera angles (Blueprint, 13% Entrance, Living, Kitchen, Bedroom, Balcony)
-const prewarmStops = [0.0, 0.13, 0.22, 0.35, 0.48, 0.62, 0.75, 0.90, 0.98];
+// 5. Pre-warm key camera angles (Blueprint & Interior Entrance)
+const prewarmStops = [0.0, 0.15];
 for (const sp of prewarmStops) {
     applyProgressToScene(sp);
     renderer.render(scene, camera);
