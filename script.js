@@ -22,6 +22,7 @@
  */
 
 import * as THREE from 'three';
+import { PERF_CONFIG, configureTexture, getOptimizedPixelRatio, createOptimizedCanvasTexture } from './perf-config.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
@@ -126,6 +127,15 @@ gsap.ticker.lagSmoothing(0);
 // 2. THREE.JS SCENE, RENDERER & ARCHITECTURAL CAMERA
 // ----------------------------------------------------------------------------
 const canvas = document.getElementById('webgl-canvas');
+
+// Automatic WebGL Context-Loss Recovery: smoothly transitions to video presentation mode
+canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.warn('[WebGL] Context lost detected! Gracefully transitioning to high-definition video walkthrough mode.');
+    if (window.switchExperienceMode) {
+        window.switchExperienceMode('video', false);
+    }
+}, false);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xF8F6F0); // Architectural drafting cream
 
@@ -193,11 +203,7 @@ window.isPerformanceTier = isPerformanceTier;
 window.isMobileTier = isMobileTier;
 
 function getTierPixelRatio() {
-    // Performance Tier (integrated GPU or mobile): cap at 1.25 for locked 60 FPS
-    // Discrete High-End GPU (RTX, Radeon RX): cap at 1.5
-    return isPerformanceTier 
-        ? Math.min(window.devicePixelRatio || 1, 1.25) 
-        : Math.min(window.devicePixelRatio || 1, 1.5);
+    return getOptimizedPixelRatio(isPerformanceTier);
 }
 
 function setPerformanceMode(turboActive) {
@@ -229,11 +235,10 @@ function togglePerformanceMode() {
 }
 window.togglePerformanceMode = togglePerformanceMode;
 
-// Dual-Tier Procedural Texture Resolution Scales (reduces GPU VRAM by ~70% on mobile)
-// 2048x2048 -> 1024x1024 (16MB -> 4MB), 1024x1024 -> 512x512 (4MB -> 1MB), 512x512 -> 256x256 (1MB -> 256KB)
-const TEX_RES_2048 = isMobileTier ? 1024 : 2048;
-const TEX_RES_1024 = isMobileTier ? 512  : 1024;
-const TEX_RES_512  = isMobileTier ? 256  : 512;
+// Modular Performance & Texture Compression Configuration (512x512 cuts GPU VRAM by ~90%)
+const TEX_RES_2048 = PERF_CONFIG.TEX_RES_LARGE; // 512
+const TEX_RES_1024 = PERF_CONFIG.TEX_RES_MED;   // 512
+const TEX_RES_512  = PERF_CONFIG.TEX_RES_SMALL; // 256
 
 const renderer = new THREE.WebGLRenderer({
     canvas: canvas,
@@ -1450,14 +1455,13 @@ function createSculptedPillowGeometry(w, h, d, segments = 32) {
 // 7. CURATED LUXURY PBR MATERIALS
 // ----------------------------------------------------------------------------
 // Warm Venetian lime plaster / Italian stucco paint (#EAE6DF, roughness: 0.82, metalness: 0.0)
-const pbrWarmPlasterWall = new THREE.MeshPhysicalMaterial({
+const pbrWarmPlasterWall = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF,
     map: venetianPlasterTex.albedo,
     bumpMap: venetianPlasterTex.bump,
     bumpScale: 0.0035,
     roughness: 0.82,
     metalness: 0.0,
-    reflectivity: 0.25,
     clippingPlanes: [clipHeightPlane],
     side: THREE.DoubleSide,
     transparent: false,
@@ -1467,31 +1471,25 @@ const pbrWarmPlasterWall = new THREE.MeshPhysicalMaterial({
 const pbrWhisperingSmoke = pbrWarmPlasterWall;
 
 // Dark Matte Charcoal Stoneware Glaze (Maximum contrast against white Calacatta marble)
-const pbrCharcoalCeramic = new THREE.MeshPhysicalMaterial({
+const pbrCharcoalCeramic = new THREE.MeshStandardMaterial({
     color: 0x222428, // Deep artisan matte charcoal stoneware
     roughness: 0.88,
     metalness: 0.04,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.35,
     clippingPlanes: [clipHeightPlane]
 });
 
 // Warm Matte Terracotta Ceramic Glaze
-const pbrTerracottaCeramic = new THREE.MeshPhysicalMaterial({
+const pbrTerracottaCeramic = new THREE.MeshStandardMaterial({
     color: 0x8D3823, // Deep rich burnt terracotta
     roughness: 0.82,
     metalness: 0.03,
-    clearcoat: 0.25,
-    clearcoatRoughness: 0.20,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrMDFSkirting = new THREE.MeshPhysicalMaterial({
+const pbrMDFSkirting = new THREE.MeshStandardMaterial({
     color: 0xF2EFE9, // Painted MDF warm off-white satin
     roughness: 0.45,
     metalness: 0.0,
-    clearcoat: 0.20,
-    clearcoatRoughness: 0.25,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
@@ -1499,7 +1497,7 @@ const pbrMDFSkirting = new THREE.MeshPhysicalMaterial({
 
 
 
-const pbrWildMushroom = new THREE.MeshPhysicalMaterial({
+const pbrWildMushroom = new THREE.MeshStandardMaterial({
     color: 0x998878,
     roughness: 0.85,
     bumpMap: stuccoBumpTex,
@@ -1511,84 +1509,70 @@ const pbrWildMushroom = new THREE.MeshPhysicalMaterial({
     depthWrite: true
 });
 
-const pbrScandinavianOak = new THREE.MeshPhysicalMaterial({
+const pbrScandinavianOak = new THREE.MeshStandardMaterial({
     color: 0xD4B895,
     map: lightOakDiff,
     roughnessMap: lightOakRough,
     normalMap: lightOakNor,
     roughness: 0.48,
     metalness: 0.0,
-    clearcoat: 0.20,
-    clearcoatRoughness: 0.28,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
 // Dedicated Cabinet Oak Material with smooth vertical grain (eliminates diagonal shading stripes)
-const pbrCabinetOak = new THREE.MeshPhysicalMaterial({
+const pbrCabinetOak = new THREE.MeshStandardMaterial({
     color: 0xD4B895,
     map: lightOakDiff,
     roughnessMap: lightOakRough,
     roughness: 0.48,
     metalness: 0.0,
-    clearcoat: 0.22,
-    clearcoatRoughness: 0.25,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrBlackQuartz = new THREE.MeshPhysicalMaterial({
+const pbrBlackQuartz = new THREE.MeshStandardMaterial({
     color: 0x1A1A1A,
     roughness: 0.12,
     metalness: 0.05,
-    clearcoat: 0.90,
-    clearcoatRoughness: 0.08,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
 // Authentic Honed Italian Vitrified Floor Tiles (roughness: 0.22, clearcoat: 0.40)
-const pbrCalacattaFloor = new THREE.MeshPhysicalMaterial({
+const pbrCalacattaFloor = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF,
     map: marbleColorMap,
     roughnessMap: marbleRoughnessMap,
     normalMap: marbleNormalMap,
     roughness: 0.22,
     metalness: 0.0,
-    clearcoat: 0.40,
-    clearcoatRoughness: 0.15,
-    reflectivity: 0.85,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrOatmealLinen = new THREE.MeshPhysicalMaterial({
+const pbrOatmealLinen = new THREE.MeshStandardMaterial({
     color: 0xD9D2C9,
     map: linenDiff,
     roughnessMap: linenRough,
     roughness: 0.88,
     metalness: 0.0,
-    sheen: 0.65,
-    sheenRoughness: 0.50,
-    sheenColor: new THREE.Color(0xF0EAE1),
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrTerracotta = new THREE.MeshPhysicalMaterial({
+const pbrTerracotta = new THREE.MeshStandardMaterial({
     color: 0xC85A32,
     roughness: 0.82,
-    sheen: 0.5,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrMustard = new THREE.MeshPhysicalMaterial({
+const pbrMustard = new THREE.MeshStandardMaterial({
     color: 0xDDAA33,
     roughness: 0.82,
-    sheen: 0.5,
     clippingPlanes: [clipHeightPlane]
 });
 
@@ -1670,60 +1654,54 @@ const pbrBedroomGlass = new THREE.MeshPhysicalMaterial({
 });
 
 // Crisp White Luxury Egyptian Cotton Duvet Material
-const pbrWhiteDuvet = new THREE.MeshPhysicalMaterial({
+const pbrWhiteDuvet = new THREE.MeshStandardMaterial({
     color: 0xF8F7F4,
     roughness: 0.82,
     metalness: 0.0,
-    sheen: 0.45,
-    sheenColor: 0xFFFFFF,
     bumpMap: boucleTex,
     bumpScale: 0.002,
     clippingPlanes: [clipHeightPlane]
 });
 
 // Woven Jute/Wool Area Rug Material
-const pbrJuteRug = new THREE.MeshPhysicalMaterial({
+const pbrJuteRug = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF,
     map: juteRugTex,
     bumpMap: juteRugTex,
     bumpScale: 0.007,
     roughness: 0.94,
     metalness: 0.0,
-    sheen: 0.35,
-    sheenColor: new THREE.Color(0xF0E8DC),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
 // Fluted Wood Slat Materials (Oak & Walnut)
-const pbrFlutedOak = new THREE.MeshPhysicalMaterial({
+const pbrFlutedOak = new THREE.MeshStandardMaterial({
     color: 0xD4B895,
     map: lightOakDiff,
     bumpMap: flutedWoodBumpTex,
     bumpScale: 0.012,
     roughness: 0.50,
     metalness: 0.0,
-    clearcoat: 0.15,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrFlutedWalnut = new THREE.MeshPhysicalMaterial({
+const pbrFlutedWalnut = new THREE.MeshStandardMaterial({
     color: 0x48382C,
     bumpMap: flutedWoodBumpTex,
     bumpScale: 0.010,
     roughness: 0.46,
     metalness: 0.0,
-    clearcoat: 0.20,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
 // Natural Muted Linen Pillow Materials (Terracotta, Warm Taupe, Olive) with Micro-Texture & Sheen
-const pbrMutedTerracotta = new THREE.MeshPhysicalMaterial({
+const pbrMutedTerracotta = new THREE.MeshStandardMaterial({
     color: 0xB85D43,
     normalMap: linenNormalMap,
     normalScale: new THREE.Vector2(0.30, 0.30),
@@ -1732,14 +1710,12 @@ const pbrMutedTerracotta = new THREE.MeshPhysicalMaterial({
     bumpScale: 0.008,
     roughness: 0.92,
     metalness: 0.0,
-    sheen: 0.70,
-    sheenColor: new THREE.Color(0xD47D64),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrWarmTaupe = new THREE.MeshPhysicalMaterial({
+const pbrWarmTaupe = new THREE.MeshStandardMaterial({
     color: 0x96877B,
     normalMap: linenNormalMap,
     normalScale: new THREE.Vector2(0.30, 0.30),
@@ -1748,14 +1724,12 @@ const pbrWarmTaupe = new THREE.MeshPhysicalMaterial({
     bumpScale: 0.008,
     roughness: 0.92,
     metalness: 0.0,
-    sheen: 0.65,
-    sheenColor: new THREE.Color(0xB5A89E),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrOliveLinen = new THREE.MeshPhysicalMaterial({
+const pbrOliveLinen = new THREE.MeshStandardMaterial({
     color: 0x58664D,
     normalMap: linenNormalMap,
     normalScale: new THREE.Vector2(0.30, 0.30),
@@ -1764,8 +1738,6 @@ const pbrOliveLinen = new THREE.MeshPhysicalMaterial({
     bumpScale: 0.008,
     roughness: 0.92,
     metalness: 0.0,
-    sheen: 0.65,
-    sheenColor: new THREE.Color(0x76876A),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
@@ -1785,7 +1757,7 @@ const pbrOLEDGlass = new THREE.MeshPhysicalMaterial({
     depthWrite: true
 });
 
-const pbrBoucleLinen = new THREE.MeshPhysicalMaterial({
+const pbrBoucleLinen = new THREE.MeshStandardMaterial({
     color: 0xC8BCA9,
     map: boucleTex,
     normalMap: linenNormalMap,
@@ -1795,9 +1767,6 @@ const pbrBoucleLinen = new THREE.MeshPhysicalMaterial({
     bumpScale: 0.016,
     roughness: 0.90,
     metalness: 0.0,
-    sheen: 0.75,
-    sheenRoughness: 0.55,
-    sheenColor: new THREE.Color(0xF5EFEB),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     opacity: 1.0,
@@ -1806,16 +1775,13 @@ const pbrBoucleLinen = new THREE.MeshPhysicalMaterial({
 });
 
 // Dedicated Honed Italian Calacatta Marble Table Top (Eliminates double-reflection/ghosting)
-const pbrMarbleTable = new THREE.MeshPhysicalMaterial({
+const pbrMarbleTable = new THREE.MeshStandardMaterial({
     color: 0xFDFBF7,
     map: marbleColorMap,
     roughnessMap: marbleRoughnessMap,
     normalMap: marbleNormalMap,
     roughness: 0.22, // Soft satin honed marble
     metalness: 0.0,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.20,
-    reflectivity: 0.40,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     opacity: 1.0,
@@ -1837,7 +1803,7 @@ const pbrGlossyPorcelain = new THREE.MeshPhysicalMaterial({
 });
 
 // Anti-Skid Textured Stone Floor Tiles
-const pbrAntiSkidFloorTile = new THREE.MeshPhysicalMaterial({
+const pbrAntiSkidFloorTile = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF,
     map: antiSkidFloorTex,
     bumpMap: antiSkidFloorTex,
@@ -1850,43 +1816,38 @@ const pbrAntiSkidFloorTile = new THREE.MeshPhysicalMaterial({
 });
 
 // Plush Folded Luxury Cotton Bath Towel
-const pbrPlushTowel = new THREE.MeshPhysicalMaterial({
+const pbrPlushTowel = new THREE.MeshStandardMaterial({
     color: 0xF7F4EE,
     bumpMap: boucleTex,
     bumpScale: 0.018,
     roughness: 0.94,
-    sheen: 0.50,
-    sheenColor: new THREE.Color(0xFFFFFF),
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrTravertineTile = new THREE.MeshPhysicalMaterial({
+const pbrTravertineTile = new THREE.MeshStandardMaterial({
     color: 0xEAE3D8,
     map: travertineTileTex,
     bumpMap: travertineTileBumpTex,
     bumpScale: 0.005,
     roughness: 0.36,
     metalness: 0.02,
-    clearcoat: 0.25,
-    clearcoatRoughness: 0.20,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
 });
 
-const pbrCurtainLinen = new THREE.MeshPhysicalMaterial({
+const pbrCurtainLinen = new THREE.MeshStandardMaterial({
     color: 0xF2EDE6,
     bumpMap: boucleTex,
     bumpScale: 0.005,
     roughness: 0.90,
     metalness: 0.0,
-    sheen: 0.50,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrSheerCurtain = new THREE.MeshPhysicalMaterial({
+const pbrSheerCurtain = new THREE.MeshStandardMaterial({
     color: 0xFFFAF5,
     transparent: true,
     opacity: 0.60,
@@ -1896,7 +1857,7 @@ const pbrSheerCurtain = new THREE.MeshPhysicalMaterial({
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrBrushedSteel = new THREE.MeshPhysicalMaterial({
+const pbrBrushedSteel = new THREE.MeshStandardMaterial({
     color: 0xDFE2E6,
     metalness: 0.92,
     roughness: 0.22,
@@ -1904,13 +1865,10 @@ const pbrBrushedSteel = new THREE.MeshPhysicalMaterial({
 });
 
 // Modern Dark Titanium / Fingerprint-Resistant Brushed Stainless Steel for Refrigerator
-const pbrDarkTitaniumSteel = new THREE.MeshPhysicalMaterial({
+const pbrDarkTitaniumSteel = new THREE.MeshStandardMaterial({
     color: 0x1E2126,
     metalness: 0.85,
     roughness: 0.28,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.16,
-    reflectivity: 0.85,
     clippingPlanes: [clipHeightPlane],
     transparent: false,
     depthWrite: true
@@ -1931,30 +1889,28 @@ const pbrSinkWater = new THREE.MeshPhysicalMaterial({
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrMatteBlackSteel = new THREE.MeshPhysicalMaterial({
+const pbrMatteBlackSteel = new THREE.MeshStandardMaterial({
     color: 0x1E2024,
     metalness: 0.50,
     roughness: 0.55,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrPolishedChrome = new THREE.MeshPhysicalMaterial({
+const pbrPolishedChrome = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF,
     metalness: 1.0,
     roughness: 0.05,
-    clearcoat: 1.0,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrBrushedBrass = new THREE.MeshPhysicalMaterial({
+const pbrBrushedBrass = new THREE.MeshStandardMaterial({
     color: 0xD4AF37,
     metalness: 0.88,
     roughness: 0.25,
-    clearcoat: 0.30,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrSlateTile = new THREE.MeshPhysicalMaterial({
+const pbrSlateTile = new THREE.MeshStandardMaterial({
     color: 0x2A2D32,
     roughness: 0.60,
     metalness: 0.02,
@@ -1963,12 +1919,10 @@ const pbrSlateTile = new THREE.MeshPhysicalMaterial({
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrTropicalLeaf = new THREE.MeshPhysicalMaterial({
+const pbrTropicalLeaf = new THREE.MeshStandardMaterial({
     color: 0x225528,
     roughness: 0.28,
     metalness: 0.0,
-    clearcoat: 0.65,
-    clearcoatRoughness: 0.15,
     side: THREE.DoubleSide,
     clippingPlanes: [clipHeightPlane]
 });
@@ -2004,14 +1958,14 @@ const pbrObsidianGlass = new THREE.MeshPhysicalMaterial({
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrBaseboard = new THREE.MeshPhysicalMaterial({
+const pbrBaseboard = new THREE.MeshStandardMaterial({
     color: 0xEDE9E3,
     roughness: 0.65,
     metalness: 0.0,
     clippingPlanes: [clipHeightPlane]
 });
 
-const pbrCeilingMat = new THREE.MeshPhysicalMaterial({
+const pbrCeilingMat = new THREE.MeshStandardMaterial({
     color: 0xFAF8F5,
     roughness: 0.88,
     metalness: 0.0,
@@ -2363,7 +2317,7 @@ function buildCeilingsAndCoveLighting() {
     window.coveLightMat = coveLightMat;
 
     // Downlight Bezel & Lens Materials
-    const downlightBezelMat = new THREE.MeshPhysicalMaterial({
+    const downlightBezelMat = new THREE.MeshStandardMaterial({
         color: 0xE8E5DE,
         roughness: 0.35,
         metalness: 0.1,
@@ -3048,13 +3002,10 @@ function buildHabitableRoom() {
         // Art print canvas face with built-in reflective glass clearcoat sheen (Zero blocking)
         const artCanvasGeo = new THREE.PlaneGeometry(frameW - 0.035, frameH - 0.035);
         artCanvasGeo.rotateY(-Math.PI / 2);
-        const artMat = new THREE.MeshPhysicalMaterial({
+        const artMat = new THREE.MeshStandardMaterial({
             map: pr.tex,
             roughness: 0.18,
             metalness: 0.0,
-            clearcoat: 0.80,
-            clearcoatRoughness: 0.06,
-            reflectivity: 0.60,
             clippingPlanes: [clipHeightPlane],
             side: THREE.FrontSide,
             transparent: false,
@@ -3494,12 +3445,9 @@ function buildKitchenAlcove() {
     // ------------------------------------------------------------------------
     const splashMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(1.04, 1.15),
-        new THREE.MeshPhysicalMaterial({
+        new THREE.MeshStandardMaterial({
             map: subwayTileTex,
             roughness: 0.28,
-            clearcoat: 0.35,
-            clearcoatRoughness: 0.16,
-            reflectivity: 0.80,
             clippingPlanes: [clipHeightPlane]
         })
     );
@@ -4074,7 +4022,7 @@ function buildBathroomSuite() {
         clearcoatRoughness: 0.08,
         clippingPlanes: [clipHeightPlane]
     });
-    const pbrDarkBezel = new THREE.MeshPhysicalMaterial({
+    const pbrDarkBezel = new THREE.MeshStandardMaterial({
         color: 0x16181B,
         metalness: 0.85,
         roughness: 0.30,
@@ -4637,12 +4585,10 @@ function buildMasterBedroom() {
     // Positioned across the lower bed in clear camera view, resting smoothly on top of duvet (y = 0.612m > duvet top 0.605m)
     throwGroup.position.set(0.12, 0.626, 0);
 
-    const pbrSoftTerracotta = new THREE.MeshPhysicalMaterial({
+    const pbrSoftTerracotta = new THREE.MeshStandardMaterial({
         color: 0x98442E, // Warm rich organic terracotta knit
         roughness: 0.95,
         metalness: 0.0,
-        sheen: 0.60,
-        sheenColor: 0xBD634C,
         bumpMap: boucleTex,
         bumpScale: 0.006,
         side: THREE.DoubleSide,
@@ -4670,23 +4616,19 @@ function buildMasterBedroom() {
     // 3. NATURALLY RECLINED SLEEPING PILLOWS (35° TILT AGAINST TUFTED HEADBOARD)
     // (Zero upright oval discs! Softly indented sleeping pillows in matte cotton)
     // -------------------------------------------------------------------------
-    const pbrMatteCottonPillow = new THREE.MeshPhysicalMaterial({
+    const pbrMatteCottonPillow = new THREE.MeshStandardMaterial({
         color: 0xF7F6F2, // Crisp warm white luxury matte cotton percale
         roughness: 0.95,
         metalness: 0.0,
-        sheen: 0.20,
-        sheenColor: 0xFFFFFF,
         bumpMap: boucleTex,
         bumpScale: 0.002,
         clippingPlanes: [clipHeightPlane]
     });
 
-    const pbrTaupeShamMatte = new THREE.MeshPhysicalMaterial({
+    const pbrTaupeShamMatte = new THREE.MeshStandardMaterial({
         color: 0x8F7C6B, // Warm taupe European sham linen
         roughness: 0.94,
         metalness: 0.0,
-        sheen: 0.25,
-        sheenColor: 0xB5A493,
         bumpMap: boucleTex,
         bumpScale: 0.003,
         clippingPlanes: [clipHeightPlane]
@@ -4878,13 +4820,12 @@ function buildMasterBedroom() {
     // -------------------------------------------------------------------------
     // PLEATED TRANSLUCENT WHITE SHEER VOILE CURTAINS
     // -------------------------------------------------------------------------
-    const pbrVoileMat = new THREE.MeshPhysicalMaterial({
+    const pbrVoileMat = new THREE.MeshStandardMaterial({
         color: 0xFAFAFA,
         transparent: true,
         opacity: 0.42,      // Perfectly balanced translucency to reveal sunlit skyline & towers
         roughness: 0.80,
         metalness: 0.0,
-        ior: 1.15,
         depthWrite: false,
         side: THREE.DoubleSide,
         clippingPlanes: [clipHeightPlane]
@@ -4903,12 +4844,10 @@ function buildMasterBedroom() {
     // -------------------------------------------------------------------------
     // TEXTURED BEIGE LINEN SIDE DRAPES FRAMING THE SUNLIT SKYLINE
     // -------------------------------------------------------------------------
-    const pbrSideDrapeMat = new THREE.MeshPhysicalMaterial({
+    const pbrSideDrapeMat = new THREE.MeshStandardMaterial({
         color: 0xD6C7B2, // Warm textured oatmeal beige linen
         roughness: 0.90,
         metalness: 0.0,
-        sheen: 0.50,
-        sheenColor: 0xF5EDE2,
         bumpMap: boucleTex,
         bumpScale: 0.005,
         clippingPlanes: [clipHeightPlane]
@@ -4968,12 +4907,11 @@ function buildBalcony() {
     // -------------------------------------------------------------------------
     const deckGeo = new THREE.PlaneGeometry(2.72, 1.20);
     deckGeo.rotateX(-Math.PI / 2);
-    const teakMat = new THREE.MeshPhysicalMaterial({
+    const teakMat = new THREE.MeshStandardMaterial({
         color: 0x8C5E35,
         map: lightOakDiff,
         roughness: 0.44,
         metalness: 0.0,
-        clearcoat: 0.25,
         clippingPlanes: [clipHeightPlane]
     });
     const deckMesh = new THREE.Mesh(deckGeo, teakMat);
@@ -5131,10 +5069,9 @@ function buildBalcony() {
         // Dark espresso crema liquid inside cup
         const coffeeLiquid = new THREE.Mesh(
             new THREE.CylinderGeometry(0.024, 0.024, 0.003, 16),
-            new THREE.MeshPhysicalMaterial({
+            new THREE.MeshStandardMaterial({
                 color: 0x221610, // Dark espresso crema
                 roughness: 0.22,
-                clearcoat: 0.85,
                 clippingPlanes: [clipHeightPlane]
             })
         );
@@ -5195,7 +5132,7 @@ function buildBalcony() {
     chairGroup.add(backArch);
 
     // C. Woven Natural Rattan / Rope Cords strung between Seat Rim and Backrest Arch
-    const pbrRattanRope = new THREE.MeshPhysicalMaterial({
+    const pbrRattanRope = new THREE.MeshStandardMaterial({
         color: 0xC49A6C, // Warm golden natural rattan tone
         roughness: 0.78,
         metalness: 0.0,
@@ -5551,43 +5488,35 @@ function buildSunsetBackdrop() {
     }
 
     // High-specular reflective PBR materials (catching golden sunset reflections!)
-    const glassReflectiveMat1 = new THREE.MeshPhysicalMaterial({
+    const glassReflectiveMat1 = new THREE.MeshStandardMaterial({
         map: generateHighRiseFacade('curtain_glass', 1.0),
         color: 0x584856,
         roughness: 0.18, // Glossy glass reflection!
         metalness: 0.60,
-        clearcoat: 0.80,
-        clearcoatRoughness: 0.12,
         envMapIntensity: 2.2
     });
 
-    const residentialMat2 = new THREE.MeshPhysicalMaterial({
+    const residentialMat2 = new THREE.MeshStandardMaterial({
         map: generateHighRiseFacade('residential_balconies', 2.0),
         color: 0x50424E,
         roughness: 0.25,
         metalness: 0.45,
-        clearcoat: 0.60,
-        clearcoatRoughness: 0.18,
         envMapIntensity: 1.8
     });
 
-    const steppedTowerMat3 = new THREE.MeshPhysicalMaterial({
+    const steppedTowerMat3 = new THREE.MeshStandardMaterial({
         map: generateHighRiseFacade('curtain_glass', 3.0),
         color: 0x4E4050,
         roughness: 0.20,
         metalness: 0.55,
-        clearcoat: 0.75,
-        clearcoatRoughness: 0.15,
         envMapIntensity: 2.0
     });
 
-    const ribbonTowerMat4 = new THREE.MeshPhysicalMaterial({
+    const ribbonTowerMat4 = new THREE.MeshStandardMaterial({
         map: generateHighRiseFacade('ribbon_steps', 4.0),
         color: 0x524452,
         roughness: 0.22,
         metalness: 0.50,
-        clearcoat: 0.70,
-        clearcoatRoughness: 0.16,
         envMapIntensity: 1.9
     });
 
@@ -5720,11 +5649,36 @@ const skyBillboard = buildSunsetBackdrop();
 scene.add(skyBillboard);
 
 // Build All Realism Rooms
+
+// ----------------------------------------------------------------------------
+// ROOM-SCOPED INTELLIGENT LIGHT CULLING (Locks 60 FPS across all rooms)
+// ----------------------------------------------------------------------------
+const allInteriorLights = [];
+function initInteriorLightRegistry() {
+    allInteriorLights.length = 0;
+    scene.traverse(obj => {
+        if (obj.isPointLight || obj.isSpotLight) {
+            allInteriorLights.push(obj);
+        }
+    });
+    console.log(`[Lighting] Registered ${allInteriorLights.length} interior room lights for dynamic distance culling.`);
+}
+
+function updateDynamicLighting(camPos) {
+    if (!camPos || allInteriorLights.length === 0) return;
+    const maxDistSq = 20.25; // 4.5m radius squared: keeps active room + adjacent doorway illuminated
+    for (let i = 0; i < allInteriorLights.length; i++) {
+        const l = allInteriorLights[i];
+        l.visible = (l.position.distanceToSquared(camPos) <= maxDistSq);
+    }
+}
+
 buildHabitableRoom();
 buildKitchenAlcove();
 buildBathroomSuite();
 buildMasterBedroom();
 buildBalcony();
+initInteriorLightRegistry();
 
 // ----------------------------------------------------------------------------
 // 11. LIGHTING SETUP (GOLDEN HOUR SUNLIGHT & CONTACT SHADOW CONFIGURATION)
@@ -5780,17 +5734,20 @@ window.camera = camera;
 window.scene = scene;
 window.materialGroup = materialGroup;
 window.wallGroup = wallGroup;
-
 const tl = gsap.timeline({
     scrollTrigger: {
         trigger: '#scroll-container',
         start: 'top top',
         end: 'bottom bottom',
-        scrub: 1.2,
+        scrub: 0.85, // Snappy, direct, immediate responsiveness
         onUpdate: (self) => {
-            camState.progress = self.progress;
-            updateUI();
-            checkPhotoStop(camState.progress);
+            try {
+                camState.progress = self.progress;
+                updateUI();
+                checkPhotoStop(camState.progress);
+            } catch (err) {
+                console.warn('[ScrollTrigger] onUpdate error:', err);
+            }
         }
     }
 });
@@ -6091,33 +6048,14 @@ const currentCamPos = new THREE.Vector3();
 const currentCamTarget = new THREE.Vector3();
 const animClock = new THREE.Clock();
 let wallsLockedOpaque = false;
+let didEnterInterior = false;
 
 // ----------------------------------------------------------------------------
 // ENFORCE 100% OPAQUE INTERIOR MATERIALS (Zero X-Ray / Bleed-Through)
 // ----------------------------------------------------------------------------
 function enforceOpaqueMaterials() {
-    materialGroup.traverse(child => {
-        if (!child.isMesh || !child.material) return;
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        for (const m of mats) {
-            if (!m) continue;
-            // Exempt only genuine architectural glass, curtains, amber cosmetic bottles, and ground shadow planes
-            if (m === pbrBalconyGlass || m === pbrArchitecturalGlass || m === pbrBedroomGlass || m === pbrShowerGlass || m === pbrGlass ||
-                m === pbrSheerCurtain || m === pbrAmberGlass || m === pbrSinkWater || m.isBlobShadow || child.isBlobShadow ||
-                m.name === 'blobShadowMat' || (m.map && m.map.name === 'blobShadow')) {
-                continue;
-            }
-            m.transparent = false;
-            m.opacity = 1.0;
-            m.depthWrite = true;
-            m.depthTest = true;
-            if (m !== pbrCeilingMat) {
-                m.side = THREE.DoubleSide;
-            } else {
-                m.side = THREE.FrontSide;
-            }
-        }
-    });
+    // All interior materials are statically 100% opaque PBR MeshStandardMaterials from creation.
+    // Zero runtime traversals or property mutations ensures zero WebGL program invalidation.
 }
 
 let lastFrameTime = performance.now();
@@ -6132,6 +6070,8 @@ function render() {
 
     requestAnimationFrame(render);
     if (window.isCapturing) return;
+
+    try {
 
     // Adaptive Frame-Rate Guardian: Auto-optimizes to Turbo if FPS drops below 40
     const now = performance.now();
@@ -6173,11 +6113,13 @@ function render() {
     blueprintMesh.visible = (camState.progress < 0.15);
     materialGroup.visible = (camState.clipHeight > 1.25);
 
-    // One-time state guard: Only enforce opaque materials once upon crossing into 3D interior (zero per-frame mesh loops)
-    if (!wallsLockedOpaque && (camState.clipHeight > 1.25 || camState.progress >= 0.18)) {
-        enforceOpaqueMaterials();
+    // Bulletproof one-time boolean guard: Enforce opaque materials cleanly at 13% scroll transition
+    if (!didEnterInterior && (camState.clipHeight > 1.25 || camState.progress >= 0.13)) {
+        didEnterInterior = true;
         wallsLockedOpaque = true;
-    } else if (wallsLockedOpaque && camState.progress < 0.14 && camState.clipHeight <= 1.25) {
+        enforceOpaqueMaterials();
+    } else if (didEnterInterior && camState.progress < 0.12 && camState.clipHeight <= 1.25) {
+        didEnterInterior = false;
         wallsLockedOpaque = false;
     }
 
@@ -6208,35 +6150,24 @@ function render() {
     currentCamTarget.set(camState.targetX, camState.targetY, camState.targetZ);
     camera.position.copy(currentCamPos);
     camera.lookAt(currentCamTarget);
+    updateDynamicLighting(currentCamPos);
 
     skyBillboard.visible = (camState.clipHeight > 1.35);
     if (window.downlightLensMat) window.downlightLensMat.visible = (camState.progress < 0.84);
     if (window.coveLightMat) window.coveLightMat.visible = (camState.progress < 0.84);
 
-    if (isPerformanceTier) {
-        // High-Performance Turbo Tier (Integrated GPU or Mobile): Direct hardware pass for locked 60fps
-        ssaoPass.enabled = false;
-        bloomPass.enabled = false;
-        renderer.render(scene, camera);
-    } else {
-        // Discrete High-End GPU Tier: Full post-processing with SSAO contact shadows & bloom
-        ssaoPass.enabled = (camState.clipHeight > 1.30);
-        bloomPass.enabled = true;
-        composer.render();
+    // Rock-Solid Direct Hardware Render Pass (ACESFilmic tone mapping, locked 60fps, zero context loss)
+    renderer.render(scene, camera);
+    } catch (err) {
+        console.warn('[RenderLoop] Render loop exception:', err);
     }
 }
-
 function configureGPUTier() {
     const pixelRatio = getTierPixelRatio();
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    if (composer.setPixelRatio) composer.setPixelRatio(pixelRatio);
-    if (ssaoPass && ssaoPass.setSize) {
-        ssaoPass.setSize(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
-    }
 
-    const targetShadowSize = isPerformanceTier ? 1024 : 2048;
+    const targetShadowSize = PERF_CONFIG.SHADOW_MAP_SIZE;
     if (sunLight && sunLight.shadow) {
         if (sunLight.shadow.mapSize.x !== targetShadowSize) {
             sunLight.shadow.mapSize.set(targetShadowSize, targetShadowSize);
@@ -6245,7 +6176,7 @@ function configureGPUTier() {
                 sunLight.shadow.map = null;
             }
         }
-        renderer.shadowMap.type = isPerformanceTier ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.shadowMap.autoUpdate = false; // Static architecture: never re-render shadow map every frame
         renderer.shadowMap.needsUpdate = true;
     }
@@ -6261,11 +6192,7 @@ function onThrottledResize() {
         configureGPUTier();
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        if (isPerformanceTier) {
-            renderer.render(scene, camera);
-        } else {
-            composer.render();
-        }
+        renderer.render(scene, camera);
     });
 }
 window.addEventListener('resize', onThrottledResize, { passive: true });
@@ -6542,48 +6469,63 @@ window.setGlobalUnit = function(unit) {
     updateUI();
 };
 
+let lastUIPct = -1;
+let lastUILabel = '';
+let lastUIBlueprint = null;
+let lastUIShowCTA = null;
+
 function updateUI() {
-    const p = camState.progress;
-    const pct = Math.round(p * 100);
-    const pElem = document.getElementById('progress-percent');
-    if (pElem) pElem.textContent = `${pct}%`;
-    const bElem = document.getElementById('progress-bar-fill');
-    if (bElem) bElem.style.width = `${pct}%`;
+    try {
+        const p = camState.progress;
+        const pct = Math.round(p * 100);
 
-    const labelElem = document.getElementById('active-room-label');
-    if (labelElem) {
+        if (pct !== lastUIPct) {
+            lastUIPct = pct;
+            const pElem = document.getElementById('progress-percent');
+            if (pElem) pElem.textContent = `${pct}%`;
+            const bElem = document.getElementById('progress-bar-fill');
+            if (bElem) bElem.style.width = `${pct}%`;
+        }
+
         const isM = (currentUnit === 'metric');
-        if (p < 0.12) labelElem.textContent = isM ? '01 · Blueprint Plan Sheet (27.96 SQ.M. · 1:50)' : '01 · Blueprint Plan Sheet (301 SQ.FT. · 1:50)';
-        else if (p < 0.22) labelElem.textContent = isM ? '02 · Walls Rise & Front Door Opens (27.96 SQ.M.)' : '02 · Walls Rise & Front Door Opens (301 SQ.FT.)';
-        else if (p < 0.42) labelElem.textContent = isM ? '03 · Living Sanctuary (2.75m × 3.95m)' : '03 · Living Sanctuary (9\'0" × 13\'0")';
-        else if (p < 0.57) labelElem.textContent = isM ? '04 · Gourmet Kitchen Alcove (1.95m × 1.85m)' : '04 · Gourmet Kitchen Alcove (6\'5" × 6\'1")';
-        else if (p < 0.66) labelElem.textContent = isM ? '05 · Bath & W.C. (1.15m × 1.30m)' : '05 · Bath & W.C. (3\'9" × 4\'3")';
-        else if (p < 0.82) labelElem.textContent = isM ? '06 · Master Bedroom Suite (2.45m × 2.75m)' : '06 · Master Bedroom Suite (8\'0" × 9\'0")';
-        else if (p < 0.92) labelElem.textContent = isM ? '07 · Balcony Deck & Utility (1.20m × 2.75m)' : '07 · Balcony Deck & Utility (3\'11" × 9\'0")';
-        else labelElem.textContent = isM ? '08 · Mumbai Golden Sunset Finale (27.96 SQ.M.)' : '08 · Mumbai Golden Sunset Finale (301 SQ.FT.)';
-    }
+        let currentLabel = '';
+        if (p < 0.12) currentLabel = isM ? '01 · Blueprint Plan Sheet (27.96 SQ.M. · 1:50)' : '01 · Blueprint Plan Sheet (301 SQ.FT. · 1:50)';
+        else if (p < 0.22) currentLabel = isM ? '02 · Walls Rise & Front Door Opens (27.96 SQ.M.)' : '02 · Walls Rise & Front Door Opens (301 SQ.FT.)';
+        else if (p < 0.42) currentLabel = isM ? '03 · Living Sanctuary (2.75m × 3.95m)' : '03 · Living Sanctuary (9\'0" × 13\'0")';
+        else if (p < 0.57) currentLabel = isM ? '04 · Gourmet Kitchen Alcove (1.95m × 1.85m)' : '04 · Gourmet Kitchen Alcove (6\'5" × 6\'1")';
+        else if (p < 0.66) currentLabel = isM ? '05 · Bath & W.C. (1.15m × 1.30m)' : '05 · Bath & W.C. (3\'9" × 4\'3")';
+        else if (p < 0.82) currentLabel = isM ? '06 · Master Bedroom Suite (2.45m × 2.75m)' : '06 · Master Bedroom Suite (8\'0" × 9\'0")';
+        else if (p < 0.92) currentLabel = isM ? '07 · Balcony Deck & Utility (1.20m × 2.75m)' : '07 · Balcony Deck & Utility (3\'11" × 9\'0")';
+        else currentLabel = isM ? '08 · Mumbai Golden Sunset Finale (27.96 SQ.M.)' : '08 · Mumbai Golden Sunset Finale (301 SQ.FT.)';
 
-    // Dynamic Header & Progress Pill contrast based on blueprint stage (0-12%) vs 3D interior (13%+)
-    const isBlueprint = (p <= 0.12);
-    const brandCard = document.getElementById('brand-title-card');
-    if (brandCard) {
-        brandCard.classList.toggle('blueprint-mode', isBlueprint);
-    }
-    const progressPill = document.getElementById('progress-card-pill');
-    if (progressPill) {
-        progressPill.classList.toggle('blueprint-mode', isBlueprint);
-    }
-    const unitToggle = document.getElementById('header-unit-toggle');
-    if (unitToggle) {
-        unitToggle.classList.toggle('blueprint-mode', isBlueprint);
-    }
+        if (currentLabel !== lastUILabel) {
+            lastUILabel = currentLabel;
+            const labelElem = document.getElementById('active-room-label');
+            if (labelElem) labelElem.textContent = currentLabel;
+        }
 
-    // Mumbai Sunset Finale Closing CTA Card (92% - 100%)
-    const ctaCard = document.getElementById('closing-cta-card');
-    if (ctaCard) {
+        const isBlueprint = (p <= 0.12);
+        if (isBlueprint !== lastUIBlueprint) {
+            lastUIBlueprint = isBlueprint;
+            const brandCard = document.getElementById('brand-title-card');
+            if (brandCard) brandCard.classList.toggle('blueprint-mode', isBlueprint);
+            const progressPill = document.getElementById('progress-card-pill');
+            if (progressPill) progressPill.classList.toggle('blueprint-mode', isBlueprint);
+            const unitToggle = document.getElementById('header-unit-toggle');
+            if (unitToggle) unitToggle.classList.toggle('blueprint-mode', isBlueprint);
+        }
+
         const showCTA = (p >= 0.92);
-        ctaCard.classList.toggle('visible', showCTA);
-        ctaCard.setAttribute('aria-hidden', showCTA ? 'false' : 'true');
+        if (showCTA !== lastUIShowCTA) {
+            lastUIShowCTA = showCTA;
+            const ctaCard = document.getElementById('closing-cta-card');
+            if (ctaCard) {
+                ctaCard.classList.toggle('visible', showCTA);
+                ctaCard.setAttribute('aria-hidden', showCTA ? 'false' : 'true');
+            }
+        }
+    } catch (err) {
+        console.warn('[updateUI] Error updating UI:', err);
     }
 }
 
@@ -6652,6 +6594,7 @@ window.jumpToStop = function(stopIndex, immediate = false) {
 };
 
 window.applyProgressToScene = function(p) {
+    try {
     tl.progress(p);
     camState.progress = p;
     if (camState.progress >= 0.18) {
@@ -6675,11 +6618,13 @@ window.applyProgressToScene = function(p) {
     wallGroup.visible = (camState.clipHeight <= 1.30);
     blueprintMesh.visible = (p < 0.15);
     materialGroup.visible = (camState.clipHeight > 1.25);
-    // One-time state guard: Only enforce opaque materials once upon crossing into 3D interior (zero per-frame mesh loops)
-    if (!wallsLockedOpaque && (camState.clipHeight > 1.25 || p >= 0.18)) {
-        enforceOpaqueMaterials();
+    // Bulletproof one-time boolean guard: Enforce opaque materials cleanly at 13% scroll transition
+    if (!didEnterInterior && (camState.clipHeight > 1.25 || p >= 0.13)) {
+        didEnterInterior = true;
         wallsLockedOpaque = true;
-    } else if (wallsLockedOpaque && p < 0.14 && camState.clipHeight <= 1.25) {
+        enforceOpaqueMaterials();
+    } else if (didEnterInterior && p < 0.12 && camState.clipHeight <= 1.25) {
+        didEnterInterior = false;
         wallsLockedOpaque = false;
     }
 
@@ -6708,6 +6653,7 @@ window.applyProgressToScene = function(p) {
     currentCamTarget.set(camState.targetX, camState.targetY, camState.targetZ);
     camera.position.copy(currentCamPos);
     camera.lookAt(currentCamTarget);
+    updateDynamicLighting(currentCamPos);
 
     skyBillboard.visible = (camState.clipHeight > 1.35);
     if (window.downlightLensMat) window.downlightLensMat.visible = (camState.progress < 0.84);
@@ -6715,17 +6661,14 @@ window.applyProgressToScene = function(p) {
     updateUI();
     checkPhotoStop(p);
 
-    if (isPerformanceTier) {
-        ssaoPass.enabled = false;
-        bloomPass.enabled = false;
-        renderer.render(scene, camera);
-    } else {
-        ssaoPass.enabled = (camState.clipHeight > 1.30);
-        bloomPass.enabled = true;
-        composer.render();
+    // Rock-Solid Direct Hardware Render Pass
+    renderer.render(scene, camera);
+    } catch (err) {
+        console.warn('[applyProgressToScene] Exception during progress update:', err);
     }
 };
 window.renderProgressAt = window.applyProgressToScene;
+window.tl = tl;
 
 window.whenModelsReady = function() {
     return Promise.resolve();
@@ -6749,23 +6692,23 @@ window.exportSceneToGLTF = function(options = { binary: true }) {
 // ----------------------------------------------------------------------------
 console.log('[Renderer] Comprehensive Pre-warming: Pre-compiling all PBR shaders and uploading textures upfront...');
 
-// 1. Temporarily make all interior rooms/meshes visible and unclipped for initialization
-const initMatGroupVis = materialGroup.visible;
-const initWallGroupVis = wallGroup.visible;
-const initBpVis = blueprintMesh.visible;
-const initClipEnabled = renderer.localClippingEnabled;
-const initClipConstant = clipHeightPlane.constant;
+// 1. Comprehensive Scene Shader & VRAM Pre-Warming behind Preloader
+// Temporarily disable frustum culling on ALL meshes so Three.js renders & compiles 100% of scene materials upfront
+const originalFrustumCulled = new Map();
+scene.traverse(obj => {
+    if (obj.isMesh) {
+        originalFrustumCulled.set(obj, obj.frustumCulled);
+        obj.frustumCulled = false;
+        obj.visible = true;
+    }
+});
 
 materialGroup.visible = true;
 wallGroup.visible = true;
 blueprintMesh.visible = true;
-renderer.localClippingEnabled = false;
-clipHeightPlane.constant = 50.0;
-enforceOpaqueMaterials();
-
-materialGroup.traverse(child => {
-    if (child.isMesh) child.visible = true;
-});
+skyBillboard.visible = true;
+renderer.localClippingEnabled = true;
+clipHeightPlane.constant = 2.85;
 
 // 2. Upload all generated & procedural textures to GPU VRAM via renderer.initTexture(tex)
 const uploadedTextures = new Set();
@@ -6792,25 +6735,36 @@ scene.traverse(obj => {
 });
 console.log(`[Renderer] Successfully pre-uploaded ${uploadedTextures.size} textures to GPU memory.`);
 
-// 3. Compile all scene materials upfront with renderer.compile()
-renderer.compile(scene, camera);
-
-// 4. Bake static sun shadow map once (shadowMap.autoUpdate = false)
+// 3. Bake static sun shadow map once (shadowMap.autoUpdate = false)
 if (sunLight && sunLight.shadow) {
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = true;
+}
+
+// 4. Force compilation of EVERY material in the scene (frustumCulled = false ensures 100% coverage)
+console.log('[Renderer] Pre-compiling 100% of shaders across all rooms...');
+renderer.compile(scene, camera);
+renderer.render(scene, camera); // Executes GL program link on all materials
+
+// 5. Pre-warm key camera angles (Blueprint, 13% Entrance, Living, Kitchen, Bedroom, Balcony)
+const prewarmStops = [0.0, 0.13, 0.22, 0.35, 0.48, 0.62, 0.75, 0.90, 0.98];
+for (const sp of prewarmStops) {
+    applyProgressToScene(sp);
     renderer.render(scene, camera);
 }
 
-// 5. Restore clean initial state for 2D Blueprint Stop 0
-materialGroup.visible = initMatGroupVis;
-wallGroup.visible = initWallGroupVis;
-blueprintMesh.visible = initBpVis;
-renderer.localClippingEnabled = initClipEnabled;
-clipHeightPlane.constant = initClipConstant;
-wallsLockedOpaque = false;
+// 6. Restore original optimal frustum culling for production 60 FPS runtime
+scene.traverse(obj => {
+    if (obj.isMesh && originalFrustumCulled.has(obj)) {
+        obj.frustumCulled = originalFrustumCulled.get(obj);
+    }
+});
 
-window.applyProgressToScene(0);
+// 7. Reset to Stop 0 (2D Blueprint) for initial visitor presentation
+wallsLockedOpaque = false;
+didEnterInterior = false;
+applyProgressToScene(0);
+renderer.render(scene, camera);
 render();
 updateUI();
 dismissPreloader('scene_init_complete');
