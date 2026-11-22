@@ -308,7 +308,7 @@ export function toggleExperienceMode() {
 function loadThreeEngine() {
     if (!threeEnginePromise) {
         console.log('[Gatekeeper] Hardware validated. Dynamically importing 3D spatial tour module (script.js)...');
-        threeEnginePromise = import('./script.js?v=2.1').catch(err => {
+        threeEnginePromise = import('./script.js?v=2.2').catch(err => {
             console.error('[Gatekeeper] Fatal error during 3D spatial tour startup:', err);
             // Graceful fallback to video on script/asset crash
             const badge = document.getElementById('vf-status-badge');

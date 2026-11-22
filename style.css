@@ -31,6 +31,7 @@ html, body {
     color: var(--ink-black);
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     overflow-x: hidden;
+    scroll-behavior: auto !important; /* Ensure native browser smooth-scrolling never fights Lenis */
 }
 
 /* Three.js Fixed Viewport Canvas */
@@ -91,9 +92,7 @@ html, body {
     flex-direction: column;
     padding: 14px 20px;
     border-radius: 16px;
-    background: rgba(15, 15, 18, 0.72);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -172,10 +171,8 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(15, 15, 18, 0.72);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(14, 16, 20, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 24px;
     padding: 4px 6px 4px 10px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
@@ -269,9 +266,7 @@ html, body {
     min-height: 32px;
     padding: 0 12px;
     border-radius: 16px;
-    background: rgba(15, 15, 18, 0.72);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1px solid rgba(212, 163, 89, 0.45);
     color: #F8F9FA;
     font-family: 'Plus Jakarta Sans', sans-serif;
@@ -300,10 +295,8 @@ html, body {
 }
 
 .scrub-btn {
-    background: rgba(15, 15, 18, 0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(14, 16, 20, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     padding: 5px 10px;
     border-radius: 14px;
     font-family: 'Plus Jakarta Sans', sans-serif;
@@ -373,9 +366,7 @@ html, body {
    BOTTOM PROGRESS BAR PILL (NO COLLISION, TABULAR-NUMS)
    ========================================================= */
 .progress-card {
-    background: rgba(15, 15, 18, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
     padding: 14px 20px;
@@ -524,13 +515,12 @@ html, body {
 }
 
 .room-plus-btn {
-    pointer-events: auto;
+    pointer-events: none;
+    visibility: hidden;
     height: 46px;
     padding: 0 18px 0 14px;
     border-radius: 23px;
-    background: rgba(15, 15, 18, 0.82);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1.5px solid rgba(212, 163, 89, 0.55);
     color: #F8F9FA;
     display: inline-flex;
@@ -538,7 +528,7 @@ html, body {
     gap: 10px;
     cursor: pointer;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(212, 163, 89, 0.25);
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0.3s;
     opacity: 0;
     transform: translateY(14px) scale(0.9);
     user-select: none;
@@ -548,6 +538,7 @@ html, body {
     opacity: 1;
     transform: translateY(0) scale(1);
     pointer-events: auto;
+    visibility: visible;
 }
 
 .room-plus-btn:hover {
@@ -614,9 +605,7 @@ html, body {
     max-width: calc(100vw - 48px);
     max-height: calc(100vh - 130px);
     overflow-y: auto;
-    background: rgba(14, 16, 20, 0.90);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    background: rgba(14, 16, 20, 0.94);
     border: 1px solid rgba(212, 163, 89, 0.45);
     border-radius: 20px;
     padding: 24px;
@@ -1042,10 +1031,8 @@ html, body {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: rgba(15, 15, 18, 0.72);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(14, 16, 20, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.14);
         color: #F8F9FA;
     }
 
@@ -1338,22 +1325,22 @@ html, body {
     transform: translate(-50%, 40px);
     opacity: 0;
     pointer-events: none;
+    visibility: hidden;
     z-index: 100;
     width: 90%;
     max-width: 580px;
-    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s;
 }
 
 .closing-cta-card.visible {
     opacity: 1;
     transform: translate(-50%, 0);
     pointer-events: auto;
+    visibility: visible;
 }
 
 .cta-glass-panel {
-    background: rgba(18, 16, 22, 0.84);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(14, 16, 20, 0.92);
     border: 1px solid rgba(230, 184, 138, 0.35);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 35px rgba(230, 184, 138, 0.15);
     border-radius: 20px;
@@ -1532,20 +1519,20 @@ html, body {
     position: fixed;
     inset: 0;
     z-index: 10000;
-    background: rgba(8, 12, 18, 0.85);
+    background: rgba(8, 12, 18, 0.90);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    visibility: hidden;
+    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.28s;
 }
 
 .interactive-modal-overlay.active {
     opacity: 1;
     pointer-events: auto;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    visibility: visible;
 }
 
 .modal-card {
@@ -1894,8 +1881,7 @@ html, body {
 
 /* Header Mode Switch Button */
 .mode-toggle-btn {
-    background: rgba(22, 24, 28, 0.78);
-    backdrop-filter: blur(12px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1px solid rgba(212, 163, 89, 0.35);
     color: #F1D49B;
     font-size: 11px;
@@ -2013,7 +1999,6 @@ html, body {
     border-radius: 999px;
     cursor: pointer;
     transition: all 0.2s ease;
-    backdrop-filter: blur(10px);
 }
 
 .vf-mode-btn:hover {
@@ -2061,8 +2046,7 @@ html, body {
     font-weight: 700;
     letter-spacing: 0.10em;
     color: #FFFFFF;
-    background: rgba(15, 17, 20, 0.75);
-    backdrop-filter: blur(8px);
+    background: rgba(14, 16, 20, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.15);
     padding: 4px 10px;
     border-radius: 999px;
@@ -2088,8 +2072,7 @@ html, body {
 }
 
 .vf-card {
-    background: rgba(22, 24, 28, 0.75);
-    backdrop-filter: blur(24px);
+    background: rgba(18, 20, 24, 0.94);
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 18px;
     padding: 28px;

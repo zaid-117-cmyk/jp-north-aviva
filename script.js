@@ -251,11 +251,12 @@ const TEX_RES_512  = PERF_CONFIG.TEX_RES_SMALL; // 256
 const renderer = new THREE.WebGLRenderer({
     canvas: canvas,
     antialias: true,
-    preserveDrawingBuffer: false, // Prevents frame-accumulation ghosting across room transitions
-    powerPreference: 'high-performance'
+    powerPreference: 'high-performance',
+    stencil: false,
+    preserveDrawingBuffer: false // Prevents frame-accumulation ghosting across room transitions
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(getTierPixelRatio());
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isPerformanceTier ? 1.0 : 1.25));
 window.renderer = renderer;
 window.checkIsMobileTier = checkIsMobileTier;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -2346,21 +2347,16 @@ function buildCeilingsAndCoveLighting() {
     const bezelGeos = [];
     const lensGeos = [];
 
-    function addDownlight(x, z, intensity = 1.3, distance = 4.0, lightColor = 0xFFE8C8) {
+    function addDownlight(x, z) {
         // Outer trim ring
         const bGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.012, 16);
         bGeo.translate(x, WALL_H - 0.006, z);
         bezelGeos.push(bGeo);
 
-        // Glowing center lens
+        // Glowing center lens (zero-cost emissive mesh)
         const lGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.014, 16);
         lGeo.translate(x, WALL_H - 0.007, z);
         lensGeos.push(lGeo);
-
-        // Architectural PointLight with physical decay
-        const light = new THREE.PointLight(lightColor, intensity, distance, 2.0);
-        light.position.set(x, WALL_H - 0.08, z);
-        group.add(light);
     }
 
     // A. CEILING TRAYS (Batched into 1 mesh)
@@ -2375,7 +2371,7 @@ function buildCeilingsAndCoveLighting() {
     mergedTrays.castShadow = true;
     group.add(mergedTrays);
 
-    // B. COVE RIBBONS (Batched into 1 mesh)
+    // B. COVE RIBBONS (Batched into 1 mesh - Zero-cost radiant emissive cove)
     const coveThickness = 0.02;
     const coveGeos = [
         new THREE.BoxGeometry(2.32, coveThickness, 0.03).translate(1.55, WALL_H - 0.01, -0.76),
@@ -2390,58 +2386,29 @@ function buildCeilingsAndCoveLighting() {
     const mergedCove = new THREE.Mesh(mergedCoveGeo, coveLightMat);
     group.add(mergedCove);
 
-    // Warm Cove Glow Lights (#FFE4B5) washing upper ceiling & walls
-    const lrCoveLight1 = new THREE.PointLight(0xFFE4B5, 2.2, 4.2, 2.0);
-    lrCoveLight1.position.set(1.55, WALL_H - 0.03, -0.65);
-    group.add(lrCoveLight1);
-
-    const lrCoveLight2 = new THREE.PointLight(0xFFE4B5, 2.2, 4.2, 2.0);
-    lrCoveLight2.position.set(1.55, WALL_H - 0.03, 2.35);
-    group.add(lrCoveLight2);
-
-    const lrCoveLight3 = new THREE.PointLight(0xFFE4B5, 1.8, 4.0, 2.0);
-    lrCoveLight3.position.set(0.48, WALL_H - 0.03, 0.85);
-    group.add(lrCoveLight3);
-
-    const lrCoveLight4 = new THREE.PointLight(0xFFE4B5, 1.8, 4.0, 2.0);
-    lrCoveLight4.position.set(2.62, WALL_H - 0.03, 0.85);
-    group.add(lrCoveLight4);
-
-    const kCoveLight = new THREE.PointLight(0xFFE4B5, 2.4, 3.8, 2.0);
-    kCoveLight.position.set(-0.85, WALL_H - 0.03, -0.90);
-    group.add(kCoveLight);
-
-    const brCoveLight1 = new THREE.PointLight(0xFFE4B5, 2.0, 4.0, 2.0);
-    brCoveLight1.position.set(-3.05, WALL_H - 0.03, -0.05);
-    group.add(brCoveLight1);
-
-    const brCoveLight2 = new THREE.PointLight(0xFFE4B5, 2.0, 4.0, 2.0);
-    brCoveLight2.position.set(-3.05, WALL_H - 0.03, -2.05);
-    group.add(brCoveLight2);
-
     // Living Room Downlights Array (6 downlights)
-    addDownlight(0.95, -0.15, 1.4, 4.2);
-    addDownlight(2.15, -0.15, 1.4, 4.2);
-    addDownlight(0.95, 0.85, 1.4, 4.2);
-    addDownlight(2.15, 0.85, 1.4, 4.2);
-    addDownlight(0.95, 1.85, 1.4, 4.2);
-    addDownlight(2.15, 1.85, 1.4, 4.2);
+    addDownlight(0.95, -0.15);
+    addDownlight(2.15, -0.15);
+    addDownlight(0.95, 0.85);
+    addDownlight(2.15, 0.85);
+    addDownlight(0.95, 1.85);
+    addDownlight(2.15, 1.85);
 
     // Kitchen 4 Task Downlights
-    addDownlight(-0.45, -1.20, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-1.25, -1.20, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-0.45, -1.90, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-1.25, -1.90, 1.5, 3.5, 0xFFF5E4);
+    addDownlight(-0.45, -1.20);
+    addDownlight(-1.25, -1.20);
+    addDownlight(-0.45, -1.90);
+    addDownlight(-1.25, -1.90);
 
     // Bedroom Downlights (4 soft architectural downlights)
-    addDownlight(-2.45, -0.55, 1.2, 3.8);
-    addDownlight(-3.65, -0.55, 1.2, 3.8);
-    addDownlight(-2.45, -1.55, 1.2, 3.8);
-    addDownlight(-3.65, -1.55, 1.2, 3.8);
+    addDownlight(-2.45, -0.55);
+    addDownlight(-3.65, -0.55);
+    addDownlight(-2.45, -1.55);
+    addDownlight(-3.65, -1.55);
 
     // D. FOYER & CORRIDOR DOWNLIGHTS
-    addDownlight(0.85, 2.45, 1.5, 3.5);
-    addDownlight(-0.85, 0.85, 1.3, 3.5);
+    addDownlight(0.85, 2.45);
+    addDownlight(-0.85, 0.85);
 
     // Merged Downlights (Bezel + Lens)
     if (bezelGeos.length > 0) {
@@ -2567,10 +2534,13 @@ function buildHabitableRoom() {
         tvGroup.add(slat);
     }
 
-    // Warm Ambient Bias Light (Ambilight glow washing behind TV onto fluted slats)
-    const tvAmbiLight = new THREE.PointLight(0xFFB066, 1.35, 2.2, 2.0);
-    tvAmbiLight.position.set(slatBackdropX + 0.04, 1.38, slatBackdropZ);
-    tvGroup.add(tvAmbiLight);
+    // Subtle zero-cost warm ambient bias panel behind TV
+    const biasGeo = new THREE.PlaneGeometry(0.72, 1.25);
+    biasGeo.rotateY(Math.PI / 2);
+    const biasMat = new THREE.MeshBasicMaterial({ color: 0xFFB066, transparent: true, opacity: 0.18, depthWrite: false });
+    const biasPanel = new THREE.Mesh(biasGeo, biasMat);
+    biasPanel.position.set(slatBackdropX + 0.02, 1.38, slatBackdropZ);
+    tvGroup.add(biasPanel);
 
     // Realistic 55-Inch Ultra-Thin Bezel OLED TV with Glass Reflection
     const tvY = 1.38;
@@ -2601,16 +2571,12 @@ function buildHabitableRoom() {
     consoleCarcass.castShadow = true;
     tvGroup.add(consoleCarcass);
 
-    // Warm Under-Cabinet LED Strip & Downward Floor Glow beneath Floating Media Console
+    // Warm Under-Cabinet LED Strip & Downward Floor Glow beneath Floating Media Console (Zero-cost emissive strip)
     const underLedGeo = new THREE.BoxGeometry(0.02, 0.006, 1.36);
     const underLedMat = new THREE.MeshBasicMaterial({ color: 0xFFE0A0 });
     const underLedStrip = new THREE.Mesh(underLedGeo, underLedMat);
     underLedStrip.position.set(consoleX + 0.10, consoleY - 0.105, slatBackdropZ);
     tvGroup.add(underLedStrip);
-
-    const underConsoleLight = new THREE.PointLight(0xFFA550, 1.5, 1.4, 2.0);
-    underConsoleLight.position.set(consoleX + 0.05, consoleY - 0.10, slatBackdropZ);
-    tvGroup.add(underConsoleLight);
 
     // 3 Individual Drawer Fronts with crisp 8mm shadow gaps & recessed brass J-pulls
     const drawerW = 0.465;
@@ -3069,20 +3035,6 @@ function buildHabitableRoom() {
         diffuser.position.set(artWallX - 0.146, sconceY + 0.002, pr.z);
         sconceGroup.add(diffuser);
 
-        // Dedicated warm picture spotlight illuminating artwork & wall plaster
-        const picLight = new THREE.PointLight(0xFFE4B5, 1.2, 1.8, 2.0);
-        picLight.position.set(artWallX - 0.16, sconceY - 0.02, pr.z);
-        sconceGroup.add(picLight);
-
-        // Downward SpotLight targeting the framed canvas center
-        const picSpot = new THREE.SpotLight(0xFFE2A8, 3.2, 2.4, Math.PI / 3.0, 0.75, 1.2);
-        picSpot.position.set(artWallX - 0.16, sconceY - 0.01, pr.z);
-        const spotTarget = new THREE.Object3D();
-        spotTarget.position.set(artWallX - 0.02, artY, pr.z);
-        group.add(spotTarget);
-        picSpot.target = spotTarget;
-        sconceGroup.add(picSpot);
-
         pGroup.add(sconceGroup);
         artGroup.add(pGroup);
     });
@@ -3486,10 +3438,7 @@ function buildKitchenAlcove() {
     ledDiffuser.position.set(-1.46, 1.616, -2.18);
     group.add(ledDiffuser);
 
-    // Warm Under-Cabinet LED Spotlight
-    const taskSpot = new THREE.PointLight(0xFFE4B5, 1.5, 2.2, 2.0);
-    taskSpot.position.set(-1.46, 1.58, -2.12);
-    group.add(taskSpot);
+    // Warm Under-Cabinet LED Diffuser (Zero-cost emissive task lighting)
 
     // ------------------------------------------------------------------------
     // 4. REALISTIC UNDERMOUNT SINK & GOOSENECK FAUCET (CENTER-LEFT COUNTER)
@@ -3723,11 +3672,14 @@ function buildKitchenAlcove() {
         hoodGroup.add(touchDot);
     }
 
-    // Warm Under-Hood Task Spotlights
+    // Warm Under-Hood Task Spotlights (Zero-cost emissive task lenses)
     for (let bx of [-0.14, 0.14]) {
-        const hoodSpot = new THREE.PointLight(0xFFE4B5, 1.3, 1.8, 2.0);
-        hoodSpot.position.set(bx, 1.61, 0.0);
-        hoodGroup.add(hoodSpot);
+        const hoodLens = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.016, 0.016, 0.005, 16),
+            new THREE.MeshBasicMaterial({ color: 0xFFE4B5 })
+        );
+        hoodLens.position.set(bx, 1.61, 0.0);
+        hoodGroup.add(hoodLens);
     }
     group.add(hoodGroup);
 
@@ -4081,13 +4033,6 @@ function buildBathroomSuite() {
     dotEco.position.set(flushPlateX + 0.038, flushPlateY, flushPlateZ - 0.011);
     toiletGroup.add(dotEco);
 
-    // Dedicated warm specular accent spotlight directly lighting the beveled chrome actuator plate
-    const flushSpot = new THREE.SpotLight(0xFFF6E8, 2.5, 2.0, Math.PI / 4, 0.4, 1.5);
-    flushSpot.position.set(flushPlateX, flushPlateY + 0.35, flushPlateZ - 0.45);
-    flushSpot.target = flushFrame;
-    toiletGroup.add(flushSpot);
-    toiletGroup.add(flushSpot.target);
-
     // Soft grounded contact shadow beneath cantilevered commode
     createBlobShadow(0.42, 0.48, wcX, wcZ - 0.05, toiletGroup, 0.38);
     group.add(toiletGroup);
@@ -4227,10 +4172,6 @@ function buildBathroomSuite() {
     const haloRingMesh = new THREE.Mesh(haloRingGeo, haloRingMat);
     haloRingMesh.position.set(vX, 1.35, 1.605);
     vanityGroup.add(haloRingMesh);
-
-    const haloWallLight = new THREE.PointLight(0xFFE4B5, 1.35, 2.2, 1.8);
-    haloWallLight.position.set(vX, 1.35, 1.605);
-    vanityGroup.add(haloWallLight);
 
     // G. Plush Folded Cotton Bath Towel on Vanity Counter
     const towelFold1 = new THREE.Mesh(
@@ -4419,9 +4360,13 @@ function buildBathroomSuite() {
     nicheBack.position.set(-1.746, 1.32, 1.38);
     showerGroup.add(nicheBack);
 
-    const nicheLight = new THREE.PointLight(0xFFE4B5, 0.95, 1.4, 2.0);
-    nicheLight.position.set(-1.72, 1.44, 1.38);
-    showerGroup.add(nicheLight);
+    // Warm Niche Concealed LED Strip
+    const nicheLed = new THREE.Mesh(
+        new THREE.BoxGeometry(0.012, 0.006, 0.38),
+        new THREE.MeshBasicMaterial({ color: 0xFFE4B5 })
+    );
+    nicheLed.position.set(-1.72, 1.48, 1.38);
+    showerGroup.add(nicheLed);
 
     const bottles = [
         { z: 1.29, h: 0.10, w: 0.046, pumpColor: pbrMatteBlackSteel },
@@ -4465,11 +4410,14 @@ function buildBathroomSuite() {
     group.add(showerGroup);
 
     // -------------------------------------------------------------------------
-    // 6. OVERHEAD CEILING DOWNLIGHT
+    // 6. OVERHEAD CEILING DOWNLIGHT (Zero-cost emissive downlight lens)
     // -------------------------------------------------------------------------
-    const bathDownlight = new THREE.PointLight(0xFFF2DC, 1.2, 3.0, 1.8);
-    bathDownlight.position.set(-1.14, 2.75, 1.05);
-    group.add(bathDownlight);
+    const bathLens = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 0.012, 16),
+        new THREE.MeshBasicMaterial({ color: 0xFFF2DC })
+    );
+    bathLens.position.set(-1.14, 2.75, 1.05);
+    group.add(bathLens);
 
     materialGroup.add(group);
 }
@@ -4538,10 +4486,13 @@ function buildMasterBedroom() {
     bedFrame.castShadow = true;
     bedGroup.add(bedFrame);
 
-    // Under-bed warm floating LED strip glow
-    const underBedLight = new THREE.PointLight(0xFFD8A8, 1.4, 2.6, 2.0);
-    underBedLight.position.set(0, 0.12, 0);
-    bedGroup.add(underBedLight);
+    // Under-bed warm floating LED strip glow (Zero-cost emissive strip)
+    const underBedStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(1.70, 0.012, 1.40),
+        new THREE.MeshBasicMaterial({ color: 0xFFD8A8 })
+    );
+    underBedStrip.position.set(0, 0.12, 0);
+    bedGroup.add(underBedStrip);
 
     // Deep plush mattress with pillowy top contour
     const mattress = new THREE.Mesh(
@@ -4683,9 +4634,12 @@ function buildMasterBedroom() {
         cone.position.set(-3.96, WALL_H - 1.45, cfg.z);
         nsGroup.add(cone);
 
-        const pendantLight = new THREE.PointLight(0xFFD8A8, 1.8, 2.8, 2.0);
-        pendantLight.position.set(-3.96, WALL_H - 1.52, cfg.z);
-        nsGroup.add(pendantLight);
+        const pendantBulb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.035, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xFFD8A8 })
+        );
+        pendantBulb.position.set(-3.96, WALL_H - 1.52, cfg.z);
+        nsGroup.add(pendantBulb);
 
         if (cfg.hasBook) {
             const novel = new THREE.Mesh(new RoundedBoxGeometry(0.14, 0.02, 0.18, 2, 0.005), pbrTerracotta);
@@ -5664,7 +5618,7 @@ scene.add(sunLight);
 window.sunLight = sunLight;
 
 // Balanced Hemisphere ambient fill (Sky warm-white, Ground warm-taupe)
-const hemiFill = new THREE.HemisphereLight(0xFFF2E0, 0x5C4E42, 0.65);
+const hemiFill = new THREE.HemisphereLight(0xFFF2E0, 0x6E5848, 0.75);
 scene.add(hemiFill);
 
 // ----------------------------------------------------------------------------
@@ -5702,9 +5656,11 @@ const tl = gsap.timeline({
         scrub: 0.85, // Snappy, direct, immediate responsiveness
         onUpdate: (self) => {
             try {
-                camState.progress = self.progress;
-                updateUI();
-                checkPhotoStop(camState.progress);
+                if (self && typeof self.progress === 'number') {
+                    camState.progress = self.progress;
+                    updateUI();
+                    checkPhotoStop(camState.progress);
+                }
             } catch (err) {
                 console.warn('[ScrollTrigger] onUpdate error:', err);
             }
@@ -6122,6 +6078,8 @@ function render() {
         console.warn('[RenderLoop] Render loop exception:', err);
     }
 }
+window.animate = render;
+window.render = render;
 function configureGPUTier() {
     const pixelRatio = getTierPixelRatio();
     renderer.setPixelRatio(pixelRatio);
