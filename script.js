@@ -25,18 +25,26 @@ import * as THREE from 'three';
 import { PERF_CONFIG, configureTexture, getOptimizedPixelRatio, createOptimizedCanvasTexture } from './perf-config.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 window.OrbitControls = OrbitControls;
 window.THREE = THREE;
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+// ----------------------------------------------------------------------------
+// SHARED MATERIAL CACHE & DEDUPLICATION (Ultra-low GPU state switches & VRAM)
+// ----------------------------------------------------------------------------
+const materialCache = new Map();
+export function getSharedMaterial(key, creatorFn) {
+    if (!materialCache.has(key)) {
+        materialCache.set(key, creatorFn());
+    }
+    return materialCache.get(key);
+}
+window.materialCache = materialCache;
+window.getSharedMaterial = getSharedMaterial;
 
 // ----------------------------------------------------------------------------
 // 0. BULLETPROOF PRELOADER & ASSET LOADING MANAGER (6s Maximum Timeout Fallback)
@@ -321,39 +329,14 @@ scene.environment = envMap;
 scene.environmentIntensity = 1.0;
 
 // ----------------------------------------------------------------------------
-// 4. POST-PROCESSING COMPOSER & SSAO PASS FOR GROUNDED CONTACT SHADOWS
+// 4. HARDWARE-ACCELERATED SINGLE-PASS RENDERING PIPELINE (ACESFilmic, Locked 60fps)
 // ----------------------------------------------------------------------------
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-renderPass.clear = true;
-renderPass.clearDepth = true;
-composer.addPass(renderPass);
-
-// Screen Space Ambient Occlusion (SSAO) at half-resolution (width * 0.5, height * 0.5) for crisp contact shadows without fill-rate bottlenecks
-const ssaoPass = new SSAOPass(
-    scene,
-    camera,
-    Math.floor(window.innerWidth * 0.5),
-    Math.floor(window.innerHeight * 0.5)
-);
-ssaoPass.kernelRadius = 0.38;
-ssaoPass.minDistance = 0.002;
-ssaoPass.maxDistance = 0.22;
-ssaoPass.output = SSAOPass.OUTPUT.Default;
-composer.addPass(ssaoPass);
-window.ssaoPass = ssaoPass;
-
-const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5)),
-    0.18, // strength (calibrated golden radiance without white flare)
-    0.30, // radius
-    0.94  // threshold (eliminates sun flare blowout)
-);
-composer.addPass(bloomPass);
-window.bloomPass = bloomPass;
-
-const outputPass = new OutputPass();
-composer.addPass(outputPass);
+// Single-pass direct rendering via renderer.render(scene, camera) with ACESFilmic
+// tone mapping eliminates multi-pass VRAM overhead and prevents GPU context loss.
+const composer = null;
+window.composer = null;
+window.ssaoPass = null;
+window.bloomPass = null;
 
 // ----------------------------------------------------------------------------
 // 5. ARCHITECTURAL CLIPPING PLANES (PENCIL TO REALITY SYSTEM)
@@ -480,7 +463,7 @@ function createVenetianPlasterTextures() {
     albedoTex.wrapS = albedoTex.wrapT = THREE.RepeatWrapping;
     albedoTex.repeat.set(4, 4);
     albedoTex.colorSpace = THREE.SRGBColorSpace;
-    albedoTex.anisotropy = maxAniso;
+    configureTexture(albedoTex);
 
     // 2. Bump Map Canvas (fine mineral grain & subtle trowel edge relief)
     const cBump = document.createElement('canvas');
@@ -510,6 +493,7 @@ function createVenetianPlasterTextures() {
     const bumpTex = new THREE.CanvasTexture(cBump);
     bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
     bumpTex.repeat.set(4, 4);
+    configureTexture(bumpTex);
 
     return { albedo: albedoTex, bump: bumpTex };
 }
@@ -557,7 +541,7 @@ function createSubwayTileTexture() {
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = maxAniso;
+    configureTexture(tex);
     return tex;
 }
 const subwayTileTex = createSubwayTileTexture();
@@ -565,13 +549,13 @@ const subwayTileTex = createSubwayTileTexture();
 // F. Procedural 65" TV Art Canvas Texture (Golden Hour Architectural Vista)
 function createArtTVTexture() {
     const c = document.createElement('canvas');
-    c.width = 1024;
-    c.height = 576;
+    c.width = 512;
+    c.height = 288;
     const ctx = c.getContext('2d');
 
-    // Flip horizontally so text and silhouettes read forward when viewed from living room
-    ctx.translate(1024, 0);
-    ctx.scale(-1, 1);
+    // Flip horizontally and scale by 0.5 so text and silhouettes read forward when viewed from living room
+    ctx.translate(512, 0);
+    ctx.scale(-0.5, 0.5);
 
     // Sunset gradient sky
     const skyGrad = ctx.createLinearGradient(0, 0, 0, 576);
@@ -624,6 +608,7 @@ function createArtTVTexture() {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const tvArtTex = createArtTVTexture();
@@ -711,16 +696,17 @@ const flutedWoodBumpTex = createFlutedWoodBumpTexture();
 // F3. Procedural Gallery Art Print 1: Minimalist Modernist Architecture Lithograph
 function createArchArtPrint1Texture() {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 768;
+    c.width = 256;
+    c.height = 384;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     // Museum archival warm ivory paper
     ctx.fillStyle = '#F4EFE6';
     ctx.fillRect(0, 0, 512, 768);
 
     // Subtle paper grain
-    for (let i = 0; i < 5000; i++) {
+    for (let i = 0; i < 3000; i++) {
         const px = Math.random() * 512;
         const py = Math.random() * 768;
         ctx.fillStyle = `rgba(100, 80, 60, ${Math.random() * 0.05})`;
@@ -776,22 +762,24 @@ function createArchArtPrint1Texture() {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const archArt1Tex = createArchArtPrint1Texture();
 
 function createArchArtPrint2Texture() {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 768;
+    c.width = 256;
+    c.height = 384;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     // Museum archival warm ivory paper
     ctx.fillStyle = '#F4EFE6';
     ctx.fillRect(0, 0, 512, 768);
 
     // Subtle paper grain
-    for (let i = 0; i < 5000; i++) {
+    for (let i = 0; i < 3000; i++) {
         const px = Math.random() * 512;
         const py = Math.random() * 768;
         ctx.fillStyle = `rgba(100, 80, 60, ${Math.random() * 0.05})`;
@@ -849,6 +837,7 @@ function createArchArtPrint2Texture() {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const archArt2Tex = createArchArtPrint2Texture();
@@ -856,8 +845,9 @@ const archArt2Tex = createArchArtPrint2Texture();
 // G. Procedural Schott Ceran Obsidian Induction Cooktop Texture (Subtle Faint Burner Rings)
 function createInductionCooktopTexture() {
     const c = document.createElement('canvas');
-    c.width = c.height = 512;
+    c.width = c.height = 256;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     // Deep obsidian ceramic glass
     ctx.fillStyle = '#121316';
@@ -906,6 +896,7 @@ function createInductionCooktopTexture() {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const inductionTex = createInductionCooktopTexture();
@@ -931,9 +922,10 @@ const bokehTexture = createCircularBokehTexture();
 // G3. Procedural Warm Sunset Sky Gradient & Distant High-Rise Skyline for Master Bedroom Window
 function createBedroomSkyTexture() {
     const c = document.createElement('canvas');
-    c.width = 1024;
-    c.height = 768;
+    c.width = 512;
+    c.height = 384;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     // Rich atmospheric golden sunset gradient
     const grad = ctx.createLinearGradient(0, 0, 0, 768);
@@ -991,6 +983,7 @@ function createBedroomSkyTexture() {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const bedroomSkyTex = createBedroomSkyTexture();
@@ -998,13 +991,13 @@ const bedroomSkyTex = createBedroomSkyTexture();
 // G2. Woven Linen / Bouclé Fabric Bump & Roughness Texture
 function createBoucleLinenTexture() {
     const c = document.createElement('canvas');
-    c.width = c.height = 512;
+    c.width = c.height = 256;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#C8BDAA';
-    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillRect(0, 0, 256, 256);
 
-    for (let y = 0; y < 512; y += 4) {
-        for (let x = 0; x < 512; x += 4) {
+    for (let y = 0; y < 256; y += 4) {
+        for (let x = 0; x < 256; x += 4) {
             const pattern = ((x + y) % 8 === 0) ? 22 : -16;
             const noise = (Math.random() - 0.5) * 26;
             const val = Math.min(255, Math.max(0, 195 + pattern + noise));
@@ -1017,6 +1010,7 @@ function createBoucleLinenTexture() {
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(6, 6);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const boucleTex = createBoucleLinenTexture();
@@ -1187,15 +1181,16 @@ const travertineTileTex = createTravertineTileTexture();
 // G3-B. Travertine Recessed Grout Bump Map
 function createTravertineBumpTexture() {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 512;
+    c.width = 256;
+    c.height = 256;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     ctx.fillStyle = '#808080';
     ctx.fillRect(0, 0, 512, 512);
 
     // Subtle tile surface grain
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 1200; i++) {
         const px = Math.random() * 512;
         const py = Math.random() * 512;
         ctx.fillStyle = `rgba(140, 140, 140, ${Math.random() * 0.12})`;
@@ -1220,6 +1215,7 @@ function createTravertineBumpTexture() {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(2, 2);
+    configureTexture(tex);
     return tex;
 }
 const travertineTileBumpTex = createTravertineBumpTexture();
@@ -1227,16 +1223,17 @@ const travertineTileBumpTex = createTravertineBumpTexture();
 // G3-C. Anti-Skid Textured Stone Bathroom Floor Tile Texture (300x300mm Grid)
 function createAntiSkidFloorTexture() {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 512;
+    c.width = 256;
+    c.height = 256;
     const ctx = c.getContext('2d');
+    ctx.scale(0.5, 0.5);
 
     // Charcoal basalt stone body
     ctx.fillStyle = '#32353A';
     ctx.fillRect(0, 0, 512, 512);
 
     // Flamed / textured anti-skid stipple grain
-    for (let i = 0; i < 12000; i++) {
+    for (let i = 0; i < 5000; i++) {
         const px = Math.random() * 512;
         const py = Math.random() * 512;
         const val = Math.floor(40 + Math.random() * 35);
@@ -1259,6 +1256,7 @@ function createAntiSkidFloorTexture() {
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(3, 3);
     tex.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(tex);
     return tex;
 }
 const antiSkidFloorTex = createAntiSkidFloorTexture();
@@ -1277,23 +1275,34 @@ function createContactBlobShadowTexture() {
     ctx.fillRect(0, 0, 256, 256);
     const tex = new THREE.CanvasTexture(c);
     tex.name = 'blobShadow';
+    configureTexture(tex);
     return tex;
 }
 const blobShadowTex = createContactBlobShadowTexture();
 blobShadowTex.name = 'blobShadow';
 
+const blobMatCache = new Map();
+function getBlobShadowMaterial(opacity) {
+    const key = (typeof opacity === 'number') ? opacity.toFixed(2) : '0.38';
+    if (!blobMatCache.has(key)) {
+        const mat = new THREE.MeshBasicMaterial({
+            map: blobShadowTex,
+            transparent: true,
+            opacity: parseFloat(key),
+            depthWrite: false,
+            clippingPlanes: [clipHeightPlane]
+        });
+        mat.name = 'blobShadowMat_' + key;
+        mat.isBlobShadow = true;
+        blobMatCache.set(key, mat);
+    }
+    return blobMatCache.get(key);
+}
+
 function createBlobShadow(w, d, x, z, parentGroup, opacity = 0.38) {
     const geo = new THREE.PlaneGeometry(w, d);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({
-        map: blobShadowTex,
-        transparent: true,
-        opacity: opacity,
-        depthWrite: false,
-        clippingPlanes: [clipHeightPlane]
-    });
-    mat.name = 'blobShadowMat';
-    mat.isBlobShadow = true;
+    const mat = getBlobShadowMaterial(opacity);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = 'blobShadowMesh';
     mesh.isBlobShadow = true;
@@ -2182,19 +2191,61 @@ function addSkirting(w, d, x, z) {
     return bb;
 }
 
-// --- Outer Perimeter Walls (Warm Off-White Matte Plaster #EAE6DF) ---
-addWall(0.20, WALL_H, 4.25, 3.05, WALL_H / 2, 0.825);
-addWall(2.00, WALL_H, 0.20, 1.95, WALL_H / 2, 2.90);
-addWall(0.20, WALL_H, 1.45, 0.10, WALL_H / 2, 2.175);
-addWall(2.05, WALL_H, 0.20, -0.825, WALL_H / 2, 1.75);
-addWall(0.20, WALL_H, 1.50, -1.85, WALL_H / 2, 1.10);
-addWall(2.55, WALL_H, 0.20, -3.025, WALL_H / 2, 0.45);
-addWall(0.20, WALL_H, 3.05, -4.30, WALL_H / 2, -0.975);
-// Master Bedroom North Window Reveal & Envelopes (Architectural Window Opening)
-addWall(0.40, WALL_H, 0.20, -4.10, WALL_H / 2, -2.50); // West reveal
-addWall(0.45, WALL_H, 0.20, -1.975, WALL_H / 2, -2.50); // East reveal
-addWall(1.70, 0.675, 0.20, -3.05, 0.3375, -2.50); // Window sill base
-addWall(1.70, 0.625, 0.20, -3.05, WALL_H - 0.3125, -2.50); // Window lintel
+// --- Batched Static Walls & Lintels (Warm Off-White Matte Plaster #EAE6DF) ---
+const staticWallDefs = [
+    // Outer Perimeter Walls
+    { w: 0.20, h: WALL_H, d: 4.25, x: 3.05, y: WALL_H / 2, z: 0.825 },
+    { w: 2.00, h: WALL_H, d: 0.20, x: 1.95, y: WALL_H / 2, z: 2.90 },
+    { w: 0.20, h: WALL_H, d: 1.45, x: 0.10, y: WALL_H / 2, z: 2.175 },
+    { w: 2.05, h: WALL_H, d: 0.20, x: -0.825, y: WALL_H / 2, z: 1.75 },
+    { w: 0.20, h: WALL_H, d: 1.50, x: -1.85, y: WALL_H / 2, z: 1.10 },
+    { w: 2.55, h: WALL_H, d: 0.20, x: -3.025, y: WALL_H / 2, z: 0.45 },
+    { w: 0.20, h: WALL_H, d: 3.05, x: -4.30, y: WALL_H / 2, z: -0.975 },
+    // Master Bedroom North Window Reveal & Envelopes
+    { w: 0.40, h: WALL_H, d: 0.20, x: -4.10, y: WALL_H / 2, z: -2.50 },
+    { w: 0.45, h: WALL_H, d: 0.20, x: -1.975, y: WALL_H / 2, z: -2.50 },
+    { w: 1.70, h: 0.675, d: 0.20, x: -3.05, y: 0.3375, z: -2.50 },
+    { w: 1.70, h: 0.625, d: 0.20, x: -3.05, y: WALL_H - 0.3125, z: -2.50 },
+    { w: 2.05, h: WALL_H, d: 0.20, x: -0.825, y: WALL_H / 2, z: -2.50 },
+    // Kitchen Shaft / Window reveal
+    { w: 0.20, h: WALL_H, d: 1.30, x: 0.10, y: WALL_H / 2, z: -1.95 },
+    { w: 0.20, h: WALL_H, d: 1.30, x: -1.85, y: WALL_H / 2, z: -1.95 },
+    // Balcony Perimeter Walls
+    { w: 0.20, h: WALL_H, d: 1.30, x: 3.05, y: WALL_H / 2, z: -1.75 },
+    { w: 2.95, h: 0.14, d: 0.15, x: 1.575, y: 0.07, z: -2.425 },
+    { w: 2.95, h: 0.45, d: 0.15, x: 1.575, y: WALL_H - 0.225, z: -2.425 },
+    // Interior Partitions & Real Architectural Door Openings
+    { w: 0.15, h: WALL_H, d: 1.60, x: 0.125, y: WALL_H / 2, z: 0.75 },
+    { w: 0.15, h: 0.75, d: 1.10, x: 0.125, y: WALL_H - 0.375, z: -0.60 },
+    { w: 0.15, h: WALL_H, d: 0.65, x: -1.825, y: WALL_H / 2, z: -0.975 },
+    { w: 0.15, h: WALL_H, d: 0.20, x: -1.825, y: WALL_H / 2, z: 0.35 },
+    { w: 0.15, h: 0.75, d: 0.90, x: -1.825, y: WALL_H - 0.375, z: -0.20 },
+    { w: 0.12, h: WALL_H, d: 1.30, x: -0.58, y: WALL_H / 2, z: 0.98 },
+    { w: 0.20, h: WALL_H, d: 0.15, x: -1.75, y: WALL_H / 2, z: 0.35 },
+    { w: 1.00, h: 0.75, d: 0.15, x: -1.15, y: WALL_H - 0.375, z: 0.35 },
+    // 6. Main Entrance Lintel, Kitchen Lintel & Balcony Sliding Lintel
+    { w: 1.00, h: 0.75, d: 0.20, x: 0.85, y: WALL_H - 0.375, z: 2.90 },
+    { w: 0.90, h: 0.75, d: 0.15, x: -0.60, y: WALL_H - 0.375, z: -0.55 },
+    { w: 1.80, h: 0.75, d: 0.15, x: 1.575, y: WALL_H - 0.375, z: -1.15 }
+];
+
+const staticWallGeoms = staticWallDefs.map(def => {
+    const g = new THREE.BoxGeometry(def.w, def.h, def.d);
+    g.translate(def.x, def.y, def.z);
+    return g;
+});
+const mergedPlasterWallGeo = mergeGeometries(staticWallGeoms, false);
+const mergedDraftWallGeo = mergedPlasterWallGeo.clone();
+
+const mergedDraftWallMesh = new THREE.Mesh(mergedDraftWallGeo, draftWallMat);
+mergedDraftWallMesh.castShadow = true;
+mergedDraftWallMesh.receiveShadow = true;
+wallGroup.add(mergedDraftWallMesh);
+
+const mergedPlasterWallMesh = new THREE.Mesh(mergedPlasterWallGeo, pbrWarmPlasterWall);
+mergedPlasterWallMesh.castShadow = true;
+mergedPlasterWallMesh.receiveShadow = true;
+materialGroup.add(mergedPlasterWallMesh);
 
 // Soft morning daylight background plane behind bedroom window
 const cBedSky = document.createElement('canvas');
@@ -2215,87 +2266,50 @@ const bedDaylightMesh = new THREE.Mesh(
 );
 bedDaylightMesh.position.set(-3.05, 1.45, -2.75);
 materialGroup.add(bedDaylightMesh);
-addWall(2.05, WALL_H, 0.20, -0.825, WALL_H / 2, -2.50);
-
-// Kitchen Shaft / Window reveal
-addWall(0.20, WALL_H, 1.30, 0.10, WALL_H / 2, -1.95);
-addWall(0.20, WALL_H, 1.30, -1.85, WALL_H / 2, -1.95);
-
-// Balcony Perimeter Walls
-addWall(0.20, WALL_H, 1.30, 3.05, WALL_H / 2, -1.75);
-addWall(2.95, 0.14, 0.15, 1.575, 0.07, -2.425); // Slim perimeter base curb under enclosed sliding window
-addWall(2.95, 0.45, 0.15, 1.575, WALL_H - 0.225, -2.425); // Balcony upper lintel
-
-// Glass Railing for Balcony (expanded clear opening above 0.72m parapet up to lintel)
-// (Balcony glass is fully handled by buildBalcony() enclosed window system)
-
-// --- Interior Partitions & Real Architectural Door Openings ---
-// 1. Living Room to Central Passage Partition (x = 0.125)
-// Solid wall separating Living from W.C. & Central Corridor (z = -0.05 to 1.55, length = 1.60m)
-addWall(0.15, WALL_H, 1.60, 0.125, WALL_H / 2, 0.75);
-// Lintel overhead across the open passage portal (y = 2.10m to 2.85m, z = -1.15 to -0.05, length = 1.10m)
-addWall(0.15, 0.75, 1.10, 0.125, WALL_H - 0.375, -0.60);
-// NOTE: Space from y = 0.0 to 2.10m between z = -1.15 and -0.05 is completely OPEN (1.10m wide corridor) for smooth circulation.
-
-// 2. Master Bedroom to Central Passage Partition (x = -1.825)
-// North solid partition segment between bedroom and kitchen shaft (z = -1.30 to -0.65)
-addWall(0.15, WALL_H, 0.65, -1.825, WALL_H / 2, -0.975);
-// South solid partition segment connecting to bedroom accent wall (z = 0.25 to 0.45)
-addWall(0.15, WALL_H, 0.20, -1.825, WALL_H / 2, 0.35);
-// Master Bedroom Door Lintel overhead (y = 2.10m to 2.85m, z = -0.65 to 0.25)
-addWall(0.15, 0.75, 0.90, -1.825, WALL_H - 0.375, -0.20);
-// NOTE: Space from y = 0.0 to 2.10m between z = -0.65 and 0.25 is OPEN! Camera glides cleanly through doorway.
-
-// 3. W.C. Partition Wall (x = -0.65)
-addWall(0.12, WALL_H, 1.30, -0.58, WALL_H / 2, 0.98); // Bathroom East Wall (Enclosing 1.15m x 1.30m Bath & W.C.)
-
-// 4. Bathroom Doorway & North Wall (z = 0.35)
-// West solid segment next to bedroom wall (x = -1.85 to -1.50)
-addWall(0.20, WALL_H, 0.15, -1.75, WALL_H / 2, 0.35);
-// Bathroom Door Lintel overhead (y = 2.10m to 2.85m, x = -1.50 to -0.65)
-addWall(1.00, 0.75, 0.15, -1.15, WALL_H - 0.375, 0.35);
-// NOTE: Space from y = 0.0 to 2.10m between x = -1.50 and -0.65 is OPEN!
 
 // 5. Master Bedroom Accent Wall ("Wild Mushroom" #998878)
 addWall(2.45, WALL_H, 0.10, -2.975, WALL_H / 2, 0.30, pbrWildMushroom);
 
-// 6. Main Entrance Lintel & Balcony Sliding Lintel
-addWall(1.00, 0.75, 0.20, 0.85, WALL_H - 0.375, 2.90);   // Main Entrance Lintel
-addWall(0.90, 0.75, 0.15, -0.60, WALL_H - 0.375, -0.55); // Kitchen Lintel
-addWall(1.80, 0.75, 0.15, 1.575, WALL_H - 0.375, -1.15); // Balcony Sliding Lintel
-
-// --- 10cm Painted MDF Skirting / Baseboards Along ALL Floor Junctions ---
-// Living & Dining Sanctuary junctions
-addSkirting(0.03, 3.90, 2.93, 0.95);  // East wall
-addSkirting(0.03, 1.60, 0.21, 0.75);  // West TV partition (Living Room side)
-addSkirting(0.03, 1.60, 0.04, 0.75);  // West TV partition (Passage side)
-addSkirting(0.95, 0.03, 2.45, 2.78);  // South entry wall
-addSkirting(0.60, 0.03, 2.65, -1.05); // North wall next to slider
-addSkirting(0.40, 0.03, 0.38, -0.68); // Kitchen divider base
-
-// Kitchen Alcove perimeter junctions
-addSkirting(0.03, 1.70, -1.73, -1.50); // West wall
-addSkirting(1.70, 0.03, -0.90, -2.38); // North window wall
-addSkirting(0.03, 1.70, 0.02, -1.50);  // East shaft wall
-addSkirting(0.45, 0.03, -1.55, -0.68); // South alcove return
-
-// Master Bedroom Suite perimeter junctions
-addSkirting(0.03, 2.75, -4.18, -1.05); // West wall
-addSkirting(2.20, 0.03, -3.05, -2.38); // North window wall
-addSkirting(0.03, 1.70, -1.92, -1.50); // East partition (north of doorway, 0.9m door opening clear)
-addSkirting(2.20, 0.03, -3.05, 0.28);  // South accent wall
-addSkirting(1.10, 0.03, -3.65, 0.38);  // Wardrobe niche base
-
-// Corridor & Foyer junctions (Door openings kept 100% unobstructed)
-addSkirting(0.35, 0.03, -1.675, 0.42); // Bath outer wall (west segment next to bedroom)
-addSkirting(0.12, 0.03, -0.58, 0.42);  // Bath outer wall (east return)
-addSkirting(0.90, 0.03, -0.60, 1.68);  // Toilet outer wall
-addSkirting(0.03, 1.20, 0.02, 2.20);   // Foyer west wall
-
-// Balcony perimeter junctions
-addSkirting(0.03, 1.20, 2.93, -1.80); // East wall
-addSkirting(0.03, 1.20, 0.17, -1.80); // West wall
-addSkirting(2.70, 0.03, 1.55, -2.35); // Parapet inner base
+// --- 10cm Painted MDF Skirting / Baseboards Along ALL Floor Junctions (Batched) ---
+const skirtingDefs = [
+    // Living & Dining Sanctuary junctions
+    { w: 0.03, d: 3.90, x: 2.93, z: 0.95 },
+    { w: 0.03, d: 1.60, x: 0.21, z: 0.75 },
+    { w: 0.03, d: 1.60, x: 0.04, z: 0.75 },
+    { w: 0.95, d: 0.03, x: 2.45, z: 2.78 },
+    { w: 0.60, d: 0.03, x: 2.65, z: -1.05 },
+    { w: 0.40, d: 0.03, x: 0.38, z: -0.68 },
+    // Kitchen Alcove perimeter junctions
+    { w: 0.03, d: 1.70, x: -1.73, z: -1.50 },
+    { w: 1.70, d: 0.03, x: -0.90, z: -2.38 },
+    { w: 0.03, d: 1.70, x: 0.02, z: -1.50 },
+    { w: 0.45, d: 0.03, x: -1.55, z: -0.68 },
+    // Master Bedroom Suite perimeter junctions
+    { w: 0.03, d: 2.75, x: -4.18, z: -1.05 },
+    { w: 2.20, d: 0.03, x: -3.05, z: -2.38 },
+    { w: 0.03, d: 1.70, x: -1.92, z: -1.50 },
+    { w: 2.20, d: 0.03, x: -3.05, z: 0.28 },
+    { w: 1.10, d: 0.03, x: -3.65, z: 0.38 },
+    // Corridor & Foyer junctions
+    { w: 0.35, d: 0.03, x: -1.675, z: 0.42 },
+    { w: 0.12, d: 0.03, x: -0.58, z: 0.42 },
+    { w: 0.90, d: 0.03, x: -0.60, z: 1.68 },
+    { w: 0.03, d: 1.20, x: 0.02, z: 2.20 },
+    // Balcony perimeter junctions
+    { w: 0.03, d: 1.20, x: 2.93, z: -1.80 },
+    { w: 0.03, d: 1.20, x: 0.17, z: -1.80 },
+    { w: 2.70, d: 0.03, x: 1.55, z: -2.35 }
+];
+const skirtingGeoms = skirtingDefs.map(def => {
+    const g = new THREE.BoxGeometry(def.w, 0.10, def.d);
+    g.translate(def.x, 0.05, def.z);
+    return g;
+});
+const mergedSkirtingGeo = mergeGeometries(skirtingGeoms, false);
+const mergedSkirtingMesh = new THREE.Mesh(mergedSkirtingGeo, pbrMDFSkirting);
+mergedSkirtingMesh.castShadow = true;
+mergedSkirtingMesh.receiveShadow = true;
+materialGroup.add(mergedSkirtingMesh);
 
 // --- CEILINGS & RECESSED WARM COVE LIGHTING (#FFE4B5) ---
 function buildCeilingsAndCoveLighting() {
@@ -2329,16 +2343,19 @@ function buildCeilingsAndCoveLighting() {
     });
     window.downlightLensMat = downlightLensMat;
 
+    const bezelGeos = [];
+    const lensGeos = [];
+
     function addDownlight(x, z, intensity = 1.3, distance = 4.0, lightColor = 0xFFE8C8) {
         // Outer trim ring
-        const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 20), downlightBezelMat);
-        bezel.position.set(x, WALL_H - 0.006, z);
-        group.add(bezel);
+        const bGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.012, 16);
+        bGeo.translate(x, WALL_H - 0.006, z);
+        bezelGeos.push(bGeo);
 
         // Glowing center lens
-        const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.014, 20), downlightLensMat);
-        lens.position.set(x, WALL_H - 0.007, z);
-        group.add(lens);
+        const lGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.014, 16);
+        lGeo.translate(x, WALL_H - 0.007, z);
+        lensGeos.push(lGeo);
 
         // Architectural PointLight with physical decay
         const light = new THREE.PointLight(lightColor, intensity, distance, 2.0);
@@ -2346,34 +2363,34 @@ function buildCeilingsAndCoveLighting() {
         group.add(light);
     }
 
-    // A. LIVING ROOM CEILING TRAY & WARM COVE (#FFE4B5)
-    // False ceiling dropped tray: 2.30m wide, 3.20m deep, dropped 8cm (y = 2.77)
-    const lrTrayGeo = new THREE.BoxGeometry(2.30, 0.08, 3.20);
-    const lrTray = new THREE.Mesh(lrTrayGeo, pbrCeilingMat);
-    lrTray.position.set(1.55, WALL_H - 0.04, 0.85);
-    lrTray.receiveShadow = true;
-    lrTray.castShadow = true;
-    group.add(lrTray);
+    // A. CEILING TRAYS (Batched into 1 mesh)
+    const trayGeos = [
+        new THREE.BoxGeometry(2.30, 0.08, 3.20).translate(1.55, WALL_H - 0.04, 0.85),
+        new THREE.BoxGeometry(1.60, 0.08, 1.45).translate(-0.85, WALL_H - 0.04, -1.55),
+        new THREE.BoxGeometry(2.00, 0.08, 2.20).translate(-3.05, WALL_H - 0.04, -1.05)
+    ];
+    const mergedTrayGeo = mergeGeometries(trayGeos, false);
+    const mergedTrays = new THREE.Mesh(mergedTrayGeo, pbrCeilingMat);
+    mergedTrays.receiveShadow = true;
+    mergedTrays.castShadow = true;
+    group.add(mergedTrays);
 
-    // Glowing LED Cove Ribbon along the perimeter
+    // B. COVE RIBBONS (Batched into 1 mesh)
     const coveThickness = 0.02;
-    const coveNorth = new THREE.Mesh(new THREE.BoxGeometry(2.32, coveThickness, 0.03), coveLightMat);
-    coveNorth.position.set(1.55, WALL_H - 0.01, -0.76);
-    group.add(coveNorth);
+    const coveGeos = [
+        new THREE.BoxGeometry(2.32, coveThickness, 0.03).translate(1.55, WALL_H - 0.01, -0.76),
+        new THREE.BoxGeometry(2.32, coveThickness, 0.03).translate(1.55, WALL_H - 0.01, 2.46),
+        new THREE.BoxGeometry(0.03, coveThickness, 3.22).translate(0.39, WALL_H - 0.01, 0.85),
+        new THREE.BoxGeometry(0.03, coveThickness, 3.22).translate(2.71, WALL_H - 0.01, 0.85),
+        new THREE.BoxGeometry(1.62, 0.02, 0.03).translate(-0.85, WALL_H - 0.01, -0.82),
+        new THREE.BoxGeometry(2.02, 0.02, 0.03).translate(-3.05, WALL_H - 0.01, 0.06),
+        new THREE.BoxGeometry(2.02, 0.02, 0.03).translate(-3.05, WALL_H - 0.01, -2.16)
+    ];
+    const mergedCoveGeo = mergeGeometries(coveGeos, false);
+    const mergedCove = new THREE.Mesh(mergedCoveGeo, coveLightMat);
+    group.add(mergedCove);
 
-    const coveSouth = new THREE.Mesh(new THREE.BoxGeometry(2.32, coveThickness, 0.03), coveLightMat);
-    coveSouth.position.set(1.55, WALL_H - 0.01, 2.46);
-    group.add(coveSouth);
-
-    const coveWest = new THREE.Mesh(new THREE.BoxGeometry(0.03, coveThickness, 3.22), coveLightMat);
-    coveWest.position.set(0.39, WALL_H - 0.01, 0.85);
-    group.add(coveWest);
-
-    const coveEast = new THREE.Mesh(new THREE.BoxGeometry(0.03, coveThickness, 3.22), coveLightMat);
-    coveEast.position.set(2.71, WALL_H - 0.01, 0.85);
-    group.add(coveEast);
-
-    // 4 Warm Cove Glow Lights (#FFE4B5) washing upper ceiling & walls
+    // Warm Cove Glow Lights (#FFE4B5) washing upper ceiling & walls
     const lrCoveLight1 = new THREE.PointLight(0xFFE4B5, 2.2, 4.2, 2.0);
     lrCoveLight1.position.set(1.55, WALL_H - 0.03, -0.65);
     group.add(lrCoveLight1);
@@ -2390,49 +2407,9 @@ function buildCeilingsAndCoveLighting() {
     lrCoveLight4.position.set(2.62, WALL_H - 0.03, 0.85);
     group.add(lrCoveLight4);
 
-    // Living Room Downlights Array (6 downlights)
-    addDownlight(0.95, -0.15, 1.4, 4.2);
-    addDownlight(2.15, -0.15, 1.4, 4.2);
-    addDownlight(0.95, 0.85, 1.4, 4.2);
-    addDownlight(2.15, 0.85, 1.4, 4.2);
-    addDownlight(0.95, 1.85, 1.4, 4.2);
-    addDownlight(2.15, 1.85, 1.4, 4.2);
-
-    // B. GOURMET KITCHEN ALCOVE CEILING & COVE (#FFE4B5)
-    const kTrayGeo = new THREE.BoxGeometry(1.60, 0.08, 1.45);
-    const kTray = new THREE.Mesh(kTrayGeo, pbrCeilingMat);
-    kTray.position.set(-0.85, WALL_H - 0.04, -1.55);
-    kTray.receiveShadow = true;
-    group.add(kTray);
-
-    const kCoveRibbon = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.02, 0.03), coveLightMat);
-    kCoveRibbon.position.set(-0.85, WALL_H - 0.01, -0.82);
-    group.add(kCoveRibbon);
-
     const kCoveLight = new THREE.PointLight(0xFFE4B5, 2.4, 3.8, 2.0);
     kCoveLight.position.set(-0.85, WALL_H - 0.03, -0.90);
     group.add(kCoveLight);
-
-    // Kitchen 4 Task Downlights
-    addDownlight(-0.45, -1.20, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-1.25, -1.20, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-0.45, -1.90, 1.5, 3.5, 0xFFF5E4);
-    addDownlight(-1.25, -1.90, 1.5, 3.5, 0xFFF5E4);
-
-    // C. MASTER BEDROOM CEILING TRAY & COVE (#FFE4B5)
-    const brTrayGeo = new THREE.BoxGeometry(2.00, 0.08, 2.20);
-    const brTray = new THREE.Mesh(brTrayGeo, pbrCeilingMat);
-    brTray.position.set(-3.05, WALL_H - 0.04, -1.05);
-    brTray.receiveShadow = true;
-    group.add(brTray);
-
-    const brCoveRibbonSouth = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.02, 0.03), coveLightMat);
-    brCoveRibbonSouth.position.set(-3.05, WALL_H - 0.01, 0.06);
-    group.add(brCoveRibbonSouth);
-
-    const brCoveRibbonNorth = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.02, 0.03), coveLightMat);
-    brCoveRibbonNorth.position.set(-3.05, WALL_H - 0.01, -2.16);
-    group.add(brCoveRibbonNorth);
 
     const brCoveLight1 = new THREE.PointLight(0xFFE4B5, 2.0, 4.0, 2.0);
     brCoveLight1.position.set(-3.05, WALL_H - 0.03, -0.05);
@@ -2441,6 +2418,20 @@ function buildCeilingsAndCoveLighting() {
     const brCoveLight2 = new THREE.PointLight(0xFFE4B5, 2.0, 4.0, 2.0);
     brCoveLight2.position.set(-3.05, WALL_H - 0.03, -2.05);
     group.add(brCoveLight2);
+
+    // Living Room Downlights Array (6 downlights)
+    addDownlight(0.95, -0.15, 1.4, 4.2);
+    addDownlight(2.15, -0.15, 1.4, 4.2);
+    addDownlight(0.95, 0.85, 1.4, 4.2);
+    addDownlight(2.15, 0.85, 1.4, 4.2);
+    addDownlight(0.95, 1.85, 1.4, 4.2);
+    addDownlight(2.15, 1.85, 1.4, 4.2);
+
+    // Kitchen 4 Task Downlights
+    addDownlight(-0.45, -1.20, 1.5, 3.5, 0xFFF5E4);
+    addDownlight(-1.25, -1.20, 1.5, 3.5, 0xFFF5E4);
+    addDownlight(-0.45, -1.90, 1.5, 3.5, 0xFFF5E4);
+    addDownlight(-1.25, -1.90, 1.5, 3.5, 0xFFF5E4);
 
     // Bedroom Downlights (4 soft architectural downlights)
     addDownlight(-2.45, -0.55, 1.2, 3.8);
@@ -2451,6 +2442,18 @@ function buildCeilingsAndCoveLighting() {
     // D. FOYER & CORRIDOR DOWNLIGHTS
     addDownlight(0.85, 2.45, 1.5, 3.5);
     addDownlight(-0.85, 0.85, 1.3, 3.5);
+
+    // Merged Downlights (Bezel + Lens)
+    if (bezelGeos.length > 0) {
+        const mergedBezelGeo = mergeGeometries(bezelGeos, false);
+        const mergedBezel = new THREE.Mesh(mergedBezelGeo, downlightBezelMat);
+        group.add(mergedBezel);
+    }
+    if (lensGeos.length > 0) {
+        const mergedLensGeo = mergeGeometries(lensGeos, false);
+        const mergedLens = new THREE.Mesh(mergedLensGeo, downlightLensMat);
+        group.add(mergedLens);
+    }
 
     materialGroup.add(group);
     return group;
@@ -3167,29 +3170,19 @@ function buildHabitableRoom() {
     const windowGroup = new THREE.Group();
     windowGroup.position.set(1.575, 1.10, -1.15);
 
-    const outerFrameTop = new THREE.Mesh(new THREE.BoxGeometry(2.44, 0.06, 0.08), pbrMatteBlackSteel);
-    outerFrameTop.position.set(0, 1.07, 0);
-    windowGroup.add(outerFrameTop);
-
-    const outerFrameBottom = new THREE.Mesh(new THREE.BoxGeometry(2.44, 0.08, 0.12), pbrMatteBlackSteel);
-    outerFrameBottom.position.set(0, -1.06, 0);
-    windowGroup.add(outerFrameBottom);
-
-    const outerFrameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.08), pbrMatteBlackSteel);
-    outerFrameLeft.position.set(-1.19, 0, 0);
-    windowGroup.add(outerFrameLeft);
-
-    const outerFrameRight = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.08), pbrMatteBlackSteel);
-    outerFrameRight.position.set(1.19, 0, 0);
-    windowGroup.add(outerFrameRight);
-
-    const centerMullion = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.14, 0.08), pbrMatteBlackSteel);
-    centerMullion.position.set(0, 0, 0);
-    windowGroup.add(centerMullion);
-
-    const fixedHorizMullion = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.04, 0.05), pbrMatteBlackSteel);
-    fixedHorizMullion.position.set(0.60, 0.15, 0);
-    windowGroup.add(fixedHorizMullion);
+    const winFrameGeos = [
+        new THREE.BoxGeometry(2.44, 0.06, 0.08).translate(0, 1.07, 0),
+        new THREE.BoxGeometry(2.44, 0.08, 0.12).translate(0, -1.06, 0),
+        new THREE.BoxGeometry(0.06, 2.20, 0.08).translate(-1.19, 0, 0),
+        new THREE.BoxGeometry(0.06, 2.20, 0.08).translate(1.19, 0, 0),
+        new THREE.BoxGeometry(0.05, 2.14, 0.08).translate(0, 0, 0),
+        new THREE.BoxGeometry(1.14, 0.04, 0.05).translate(0.60, 0.15, 0)
+    ];
+    const mergedWinFrameGeo = mergeGeometries(winFrameGeos, false);
+    const mergedWinFrame = new THREE.Mesh(mergedWinFrameGeo, pbrMatteBlackSteel);
+    mergedWinFrame.castShadow = true;
+    mergedWinFrame.receiveShadow = true;
+    windowGroup.add(mergedWinFrame);
 
     const fixedUpperGlass = new THREE.Mesh(new THREE.BoxGeometry(1.13, 0.88, 0.02), pbrArchitecturalGlass);
     fixedUpperGlass.position.set(0.60, 0.61, 0);
@@ -4754,28 +4747,19 @@ function buildMasterBedroom() {
     const winH = 1.55;
     const winY = 1.45;
 
-    // Outer Slim Matte Black Aluminum Window Frame (Clean architectural window opening)
-    const fTop = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.035, 0.04), pbrMatteBlackSteel);
-    fTop.position.set(0, winY + winH / 2 - 0.015, 0);
-    bedWindowGroup.add(fTop);
-
-    // FLUSH INSET SILL FRAME (Zero protruding black band! Sits flush inside glass reveal)
-    const fBottom = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.04, 0.020, 0.03), pbrMatteBlackSteel);
-    fBottom.position.set(0, winY - winH / 2 + 0.010, 0);
-    bedWindowGroup.add(fBottom);
-
-    const fLeft = new THREE.Mesh(new THREE.BoxGeometry(0.035, winH, 0.04), pbrMatteBlackSteel);
-    fLeft.position.set(-winW / 2 + 0.018, winY, 0);
-    bedWindowGroup.add(fLeft);
-
-    const fRight = new THREE.Mesh(new THREE.BoxGeometry(0.035, winH, 0.04), pbrMatteBlackSteel);
-    fRight.position.set(winW / 2 - 0.018, winY, 0);
-    bedWindowGroup.add(fRight);
-
-    // Center Vertical Mullion
-    const fCenter = new THREE.Mesh(new THREE.BoxGeometry(0.030, winH, 0.035), pbrMatteBlackSteel);
-    fCenter.position.set(0, winY, 0);
-    bedWindowGroup.add(fCenter);
+    // Outer Slim Matte Black Aluminum Window Frame & Mullions (Batched)
+    const bedWinFrameGeos = [
+        new THREE.BoxGeometry(winW, 0.035, 0.04).translate(0, winY + winH / 2 - 0.015, 0),
+        new THREE.BoxGeometry(winW - 0.04, 0.020, 0.03).translate(0, winY - winH / 2 + 0.010, 0),
+        new THREE.BoxGeometry(0.035, winH, 0.04).translate(-winW / 2 + 0.018, winY, 0),
+        new THREE.BoxGeometry(0.035, winH, 0.04).translate(winW / 2 - 0.018, winY, 0),
+        new THREE.BoxGeometry(0.030, winH, 0.035).translate(0, winY, 0)
+    ];
+    const mergedBedWinFrameGeo = mergeGeometries(bedWinFrameGeos, false);
+    const mergedBedWinFrame = new THREE.Mesh(mergedBedWinFrameGeo, pbrMatteBlackSteel);
+    mergedBedWinFrame.castShadow = true;
+    mergedBedWinFrame.receiveShadow = true;
+    bedWindowGroup.add(mergedBedWinFrame);
 
     // Exterior Soft Warm Sunset Sky Gradient & High-Rise Horizon Backdrop Plane (Sitting in reveal right behind glass)
     const skyBackdropGeo = new THREE.PlaneGeometry(2.40, 1.85);
@@ -4929,46 +4913,21 @@ function buildBalcony() {
     const winW = 2.72;
     const winH = 2.80;
 
-    // Slim bottom sill base
-    const sill = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.16, 0.10), pbrMatteBlackSteel);
-    sill.position.set(0, 0.08, 0);
-    sill.castShadow = true;
-    sill.receiveShadow = true;
-    winSysGroup.add(sill);
-
-    // Top Header Lintel Frame
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.08, 0.10), pbrMatteBlackSteel);
-    lintel.position.set(0, winH - 0.04, 0);
-    lintel.castShadow = true;
-    winSysGroup.add(lintel);
-
-    // Left and Right Jamb Frames
-    const jambL = new THREE.Mesh(new THREE.BoxGeometry(0.06, winH, 0.10), pbrMatteBlackSteel);
-    jambL.position.set(-winW / 2 + 0.03, winH / 2, 0);
-    jambL.castShadow = true;
-    winSysGroup.add(jambL);
-
-    const jambR = new THREE.Mesh(new THREE.BoxGeometry(0.06, winH, 0.10), pbrMatteBlackSteel);
-    jambR.position.set(winW / 2 - 0.03, winH / 2, 0);
-    jambR.castShadow = true;
-    winSysGroup.add(jambR);
-
-    // 2 Slim Vertical Mullions dividing into 3 panoramic glass bays (cast golden shadows!)
-    const m1 = new THREE.Mesh(new THREE.BoxGeometry(0.035, winH - 0.20, 0.05), pbrMatteBlackSteel);
-    m1.position.set(-0.46, (winH + 0.16) / 2, 0);
-    m1.castShadow = true;
-    winSysGroup.add(m1);
-
-    const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.035, winH - 0.20, 0.05), pbrMatteBlackSteel);
-    m2.position.set(0.46, (winH + 0.16) / 2, 0);
-    m2.castShadow = true;
-    winSysGroup.add(m2);
-
-    // Horizontal Transom Mullion Bar at y = 2.25m (casts horizontal shadow across floor)
-    const transom = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.08, 0.035, 0.05), pbrMatteBlackSteel);
-    transom.position.set(0, 2.25, 0);
-    transom.castShadow = true;
-    winSysGroup.add(transom);
+    // Slim frame and mullions (Batched)
+    const balcWinFrameGeos = [
+        new THREE.BoxGeometry(winW, 0.16, 0.10).translate(0, 0.08, 0),
+        new THREE.BoxGeometry(winW, 0.08, 0.10).translate(0, winH - 0.04, 0),
+        new THREE.BoxGeometry(0.06, winH, 0.10).translate(-winW / 2 + 0.03, winH / 2, 0),
+        new THREE.BoxGeometry(0.06, winH, 0.10).translate(winW / 2 - 0.03, winH / 2, 0),
+        new THREE.BoxGeometry(0.035, winH - 0.20, 0.05).translate(-0.46, (winH + 0.16) / 2, 0),
+        new THREE.BoxGeometry(0.035, winH - 0.20, 0.05).translate(0.46, (winH + 0.16) / 2, 0),
+        new THREE.BoxGeometry(winW - 0.08, 0.035, 0.05).translate(0, 2.25, 0)
+    ];
+    const mergedBalcWinFrameGeo = mergeGeometries(balcWinFrameGeos, false);
+    const mergedBalcWinFrame = new THREE.Mesh(mergedBalcWinFrameGeo, pbrMatteBlackSteel);
+    mergedBalcWinFrame.castShadow = true;
+    mergedBalcWinFrame.receiveShadow = true;
+    winSysGroup.add(mergedBalcWinFrame);
 
     // Ultra-clear Architectural Glass Panes
     const glassMain = new THREE.Mesh(
@@ -5359,9 +5318,10 @@ function buildSunsetBackdrop() {
     // -------------------------------------------------------------------------
     function generateHighRiseFacade(style, seed) {
         const c = document.createElement('canvas');
-        c.width = 512;
-        c.height = 1024;
+        c.width = 256;
+        c.height = 512;
         const ctx = c.getContext('2d');
+        ctx.scale(0.5, 0.5);
 
         function pseudoR(s) {
             const v = Math.sin(s) * 10000;
@@ -5483,7 +5443,7 @@ function buildSunsetBackdrop() {
 
         const tex = new THREE.CanvasTexture(c);
         tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = maxAniso;
+        configureTexture(tex);
         return tex;
     }
 

@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="./favicon.ico">
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.1">
 </head>
 <body>
 
@@ -333,8 +333,8 @@
                 <div class="vf-video-column">
                     <div class="vf-video-frame">
                         <video id="fallback-video" class="vf-video"
-                               src="./media/jp_north_aviva_walkthrough.mp4"
-                               autoplay muted loop playsinline controls preload="auto"
+                               data-src="./media/jp_north_aviva_walkthrough.mp4"
+                               muted loop playsinline controls preload="none"
                                poster="./media/jp_north_aviva_poster.jpg">
                             <p>Your browser does not support HTML5 video. <a href="./media/jp_north_aviva_walkthrough.mp4">Download the video directly</a>.</p>
                         </video>
@@ -433,12 +433,13 @@
             "three/addons/postprocessing/ShaderPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/ShaderPass.js",
             "three/addons/postprocessing/UnrealBloomPass.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/postprocessing/UnrealBloomPass.js",
             "three/addons/lights/RectAreaLightUniformsLib.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/lights/RectAreaLightUniformsLib.js",
+            "three/addons/utils/BufferGeometryUtils.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/utils/BufferGeometryUtils.js",
             "three/addons/exporters/GLTFExporter.js": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/exporters/GLTFExporter.js"
         }
     }
     </script>
 
     <!-- Pre-Scene Hardware Gatekeeper & Mode Controller -->
-    <script type="module" src="gate.js"></script>
+    <script type="module" src="gate.js?v=2.1"></script>
 </body>
 </html>
